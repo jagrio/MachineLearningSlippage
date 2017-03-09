@@ -5,8 +5,10 @@ Training of Machine Learning Classifiers for Slippage Detection during grasping 
 
 ## Package structure
 
-|---> MLslippagesrc
-          |---> setup files
-          |---> MLslippage package
-                        |---> Python Code
-                        |---> Ipython Code
+> ###Lslippagesrc###
+>> ####Setup files####
+>>
+>> ####MLslippage package####
+>>> #####Python Code#####
+>>>
+>>> #####Ipython Code#####

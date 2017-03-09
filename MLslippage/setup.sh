@@ -48,25 +48,37 @@ else
     echo "Done."
 fi
 
-echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
-if which virtualenv > /dev/null 2>&1;
-then
-  echo "Virtualenv already installed."
-else
-  echo "Virtualenv not installed. Installing..."
-  pip install virtualenv >/dev/null
-  echo "Done."
-fi
-sudo -u $user virtualenv "virtenv"
-sudo -u $user source 'virtenv/bin/activate'
+echo "Installing or Updating setuptools ..."
+pip install -U setuptools
+
+# echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
+# if which virtualenv > /dev/null 2>&1;
+# then
+#   echo "Virtualenv already installed."
+# else
+#   echo "Virtualenv not installed. Installing..."
+#   pip install virtualenv >/dev/null
+#   echo "Done."
+# fi
+# virtenv="virtenv"
+# sudo -u $user virtualenv $virtenv
+# source 'virtenv/bin/activate'
 
 echo "Checking for package dependencies and installing whatever needed. This may take a while..."
-echo "USER=========================================================="
+echo "USER============================================================"
 sudo -u $user pip freeze
-echo "ROOT=========================================================="
-pip freeze
+# echo "VRTENV=========================================================="
+# su $user << EOF
+# echo $virtenv
+# ${virtenv}/bin/pip freeze
+# EOF
+#sudo -u $user $virtenv/bin/pip freeze
 echo "Checking for setup.py dependencies..."
-pip install -U --no-deps ../MLslippage/ #>/dev/null
+#sudo -u $user 
+pip install -U --no-deps . #>/dev/null
+# su $user << EOF
+# ${virtenv}/bin/pip install -U --no-deps .
+# EOF
 apt-get update >/dev/null
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>/dev/null`
@@ -80,10 +92,13 @@ else
   echo "Done."
 fi
 echo "Done."
-echo "USER=========================================================="
+echo "USER============================================================"
 sudo -u $user pip freeze
-echo "ROOT=========================================================="
-pip freeze
+# echo "VRTENV=========================================================="
+# su $user << EOF
+# ${virtenv}/bin/pip freeze
+# EOF
+#sudo -u $user $virtenv/bin/pip freeze
 echo "Deactivating Virtualenv"
 #sudo -u $user deactivate
 echo "Finished Setup!"

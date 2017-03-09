@@ -13,17 +13,6 @@ user=`who am I | awk '{print $1}'`
 # command2 -p 'parameter with "quotes" inline'
 # EOF
 echo "Starting Setup!"
-echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
-if which virtualenv > /dev/null 2>&1;
-then
-  echo "Virtualenv already installed."
-else
-  echo "Virtualenv not installed. Installing..."
-  apt-get install virtualenv >/dev/null
-  echo "Done."
-fi
-sudo -u $user virtualenv "virtenv"
-sudo -u $user source 'virtenv/bin/activate'
 
 echo "Checking for Python version 2.7 ..."
 if which python > /dev/null 2>&1;
@@ -45,19 +34,31 @@ else
     echo "Done."
 fi
 
-# echo "Checking for pip ..."
-# if which pip > /dev/null 2>&1;
-# then
-#     #pip is installed
-#     echo "Pip is installed. Updating..."
-#     sudo apt-get install --only-upgrade python-pip >/dev/null
-#     echo "Done."
-# else
-#     #pip is not installed
-#     echo "Pip is not installed. Installing..."
-#     sudo apt-get install python-pip >/dev/null
-#     echo "Done."
-# fi
+echo "Checking for pip ..."
+if which pip > /dev/null 2>&1;
+then
+    #pip is installed
+    echo "Pip is installed. Updating..."
+    apt-get install --only-upgrade python-pip >/dev/null
+    echo "Done."
+else
+    #pip is not installed
+    echo "Pip is not installed. Installing..."
+    apt-get install python-pip >/dev/null
+    echo "Done."
+fi
+
+echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
+if which virtualenv > /dev/null 2>&1;
+then
+  echo "Virtualenv already installed."
+else
+  echo "Virtualenv not installed. Installing..."
+  pip install virtualenv >/dev/null
+  echo "Done."
+fi
+sudo -u $user virtualenv "virtenv"
+sudo -u $user source 'virtenv/bin/activate'
 
 echo "Checking for package dependencies and installing whatever needed. This may take a while..."
 echo "USER=========================================================="

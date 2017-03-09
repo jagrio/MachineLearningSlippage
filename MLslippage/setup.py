@@ -27,6 +27,5 @@ setup(
         'matplotlib>=2.0.0',
         'scikit-learn>=0.18.1',
         'nitime>=0.6',
-        'pylab',
     ]
 )

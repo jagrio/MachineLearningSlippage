@@ -65,8 +65,8 @@ pip install -U setuptools
 # source 'virtenv/bin/activate'
 
 echo "Checking for package dependencies and installing whatever needed. This may take a while..."
-echo "USER============================================================"
-sudo -u $user pip freeze
+#echo "USER============================================================"
+#sudo -u $user pip freeze
 # echo "VRTENV=========================================================="
 # su $user << EOF
 # echo $virtenv
@@ -74,8 +74,9 @@ sudo -u $user pip freeze
 # EOF
 #sudo -u $user $virtenv/bin/pip freeze
 echo "Checking for setup.py dependencies..."
-#sudo -u $user 
-pip install -U --no-deps . #>/dev/null
+#sudo -u $user
+pip install --upgrade --no-deps . #>/dev/null
+pip install .
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
@@ -92,13 +93,13 @@ else
   echo "Done."
 fi
 echo "Done."
-echo "USER============================================================"
-sudo -u $user pip freeze
+#echo "USER============================================================"
+#sudo -u $user pip freeze
 # echo "VRTENV=========================================================="
 # su $user << EOF
 # ${virtenv}/bin/pip freeze
 # EOF
 #sudo -u $user $virtenv/bin/pip freeze
-echo "Deactivating Virtualenv"
+# echo "Deactivating Virtualenv"
 #sudo -u $user deactivate
 echo "Finished Setup!"

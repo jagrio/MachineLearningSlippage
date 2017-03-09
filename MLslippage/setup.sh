@@ -48,6 +48,34 @@ else
     echo "Done."
 fi
 
+echo "Checking for ipython ..."
+if which ipython > /dev/null 2>&1;
+then
+    #pip is installed
+    echo "Ipython is installed. Updating..."
+    apt-get install --only-upgrade ipython >/dev/null
+    echo "Done."
+else
+    #pip is not installed
+    echo "Ipython is not installed. Installing..."
+    apt-get install ipython >/dev/null
+    echo "Done."
+fi
+
+echo "Checking for jupyter ..."
+if which jupyter > /dev/null 2>&1;
+then
+    #pip is installed
+    echo "Jupyter is installed. Updating..."
+    apt-get install --only-upgrade jupyter >/dev/null
+    echo "Done."
+else
+    #pip is not installed
+    echo "Jupyter is not installed. Installing..."
+    apt-get install jupyter >/dev/null
+    echo "Done."
+fi
+
 echo "Installing or Updating setuptools ..."
 pip install -U setuptools
 

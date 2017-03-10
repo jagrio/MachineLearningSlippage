@@ -62,22 +62,28 @@ else
     echo "Done."
 fi
 
-echo "Checking for jupyter ..."
-if which jupyter > /dev/null 2>&1;
-then
-    #pip is installed
-    echo "Jupyter is installed. Updating..."
-    apt-get install -y --only-upgrade jupyter >/dev/null
-    echo "Done."
-else
-    #pip is not installed
-    echo "Jupyter is not installed. Installing..."
-    apt-get install -y jupyter >/dev/null
-    echo "Done."
-fi
+# echo "Checking for jupyter ..."
+# if which jupyter > /dev/null 2>&1;
+# then
+#     #pip is installed
+#     echo "Jupyter is installed. Updating..."
+#     apt-get install -y --only-upgrade jupyter >/dev/null
+#     echo "Done."
+# else
+#     #pip is not installed
+#     echo "Jupyter is not installed. Installing..."
+#     apt-get install -y jupyter >/dev/null
+#     echo "Done."
+# fi
 
 echo "Installing or Updating setuptools ..."
 pip install -U setuptools
+echo "Installing or Updating jupyter ..."
+pip install -U jupyter
+echo "Installing freetype ... (matplotlib dependency)"
+apt-get install -y libfreetype6-dev
+echo "Installing png ... (matplotlib dependency)"
+apt-get install -y libpng12-dev
 
 # echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
 # if which virtualenv > /dev/null 2>&1;
@@ -103,7 +109,7 @@ echo "Checking for package dependencies and installing whatever needed. This may
 #sudo -u $user $virtenv/bin/pip freeze
 echo "Checking for setup.py dependencies..."
 #sudo -u $user
-pip install --upgrade --no-deps . #>/dev/null
+#pip install --upgrade --no-deps . #>/dev/null
 pip install .
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .

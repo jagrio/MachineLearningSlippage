@@ -22,10 +22,10 @@ setup(
     #     ]
     # },
     install_requires=[
-        'numpy>=1.12.0',
-        'scipy>=0.18.1',
-        'matplotlib>=2.0.0',
-        'scikit-learn>=0.18.1',
-        'nitime>=0.6',
+        'numpy ==1.12.0',
+        'scipy ==0.18.1',
+        'matplotlib ==2.0.0',
+        'scikit-learn ==0.18.1',
+        'nitime ==0.6',
     ]
 )

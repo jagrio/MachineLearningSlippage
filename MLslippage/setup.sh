@@ -109,7 +109,7 @@ echo "Checking for package dependencies and installing whatever needed. This may
 #sudo -u $user $virtenv/bin/pip freeze
 echo "Checking for setup.py dependencies..."
 #sudo -u $user
-#pip install --upgrade --no-deps . #>/dev/null
+pip install --upgrade --no-deps . #>/dev/null
 pip install .
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .

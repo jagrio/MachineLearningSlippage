@@ -24,13 +24,13 @@ then
       echo "Python version 2.7 is already installed."
     else
       echo "Python version $pv is installed. Installing 2.7 as well..."
-      apt-get install python2.7 >/dev/null
+      apt-get install -y python2.7 >/dev/null
       echo "Done."
     fi
 else
     #Python is not installed
     echo "No Python executable is found. Python may not be installed. Installing version 2.7..."
-    apt-get install python2.7 >/dev/null
+    apt-get install -y python2.7 >/dev/null
     echo "Done."
 fi
 
@@ -39,12 +39,12 @@ if which pip > /dev/null 2>&1;
 then
     #pip is installed
     echo "Pip is installed. Updating..."
-    apt-get install --only-upgrade python-pip >/dev/null
+    apt-get install -y --only-upgrade python-pip >/dev/null
     echo "Done."
 else
     #pip is not installed
     echo "Pip is not installed. Installing..."
-    apt-get install python-pip >/dev/null
+    apt-get install -y python-pip >/dev/null
     echo "Done."
 fi
 
@@ -53,12 +53,12 @@ if which ipython > /dev/null 2>&1;
 then
     #pip is installed
     echo "Ipython is installed. Updating..."
-    apt-get install --only-upgrade ipython >/dev/null
+    apt-get install -y --only-upgrade ipython >/dev/null
     echo "Done."
 else
     #pip is not installed
     echo "Ipython is not installed. Installing..."
-    apt-get install ipython >/dev/null
+    apt-get install -y ipython >/dev/null
     echo "Done."
 fi
 
@@ -67,12 +67,12 @@ if which jupyter > /dev/null 2>&1;
 then
     #pip is installed
     echo "Jupyter is installed. Updating..."
-    apt-get install --only-upgrade jupyter >/dev/null
+    apt-get install -y --only-upgrade jupyter >/dev/null
     echo "Done."
 else
     #pip is not installed
     echo "Jupyter is not installed. Installing..."
-    apt-get install jupyter >/dev/null
+    apt-get install -y jupyter >/dev/null
     echo "Done."
 fi
 
@@ -117,7 +117,7 @@ then
   echo "Pygame is already installed."
 else
   echo "Pygame is not installed. Installing..."
-  apt-get install python-pygame #>/dev/null
+  apt-get install -y python-pygame #>/dev/null
   echo "Done."
 fi
 echo "Done."

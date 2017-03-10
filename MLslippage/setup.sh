@@ -22,15 +22,16 @@ then
     if [[ $pv == *"2.7"* ]]
     then
       echo "Python version 2.7 is already installed."
+      apt-get install -y python2.7-dev >/dev/null
     else
       echo "Python version $pv is installed. Installing 2.7 as well..."
-      apt-get install -y python2.7 >/dev/null
+      apt-get install -y python2.7 python2.7-dev >/dev/null
       echo "Done."
     fi
 else
     #Python is not installed
     echo "No Python executable is found. Python may not be installed. Installing version 2.7..."
-    apt-get install -y python2.7 >/dev/null
+    apt-get install -y python2.7 python2.7-dev >/dev/null
     echo "Done."
 fi
 
@@ -77,13 +78,15 @@ fi
 # fi
 
 echo "Installing or Updating setuptools ..."
-pip install -U setuptools
+pip install -U setuptools >/dev/null
 echo "Installing or Updating jupyter ..."
-pip install -U jupyter
+pip install -U jupyter >/dev/null
 echo "Installing freetype ... (matplotlib dependency)"
-apt-get install -y libfreetype6-dev
+apt-get install -y libfreetype6-dev >/dev/null
 echo "Installing png ... (matplotlib dependency)"
-apt-get install -y libpng12-dev
+apt-get install -y libpng12-dev >/dev/null
+echo "Installing fortran, atlas and lapack ... (scipy dependencies)"
+apt-get install -y gfortran libatlas-base-dev liblapack-dev >/dev/null
 
 # echo "Creating Virtual Environment (virtualenv) to run and install whatever needed!"
 # if which virtualenv > /dev/null 2>&1;
@@ -109,8 +112,8 @@ echo "Checking for package dependencies and installing whatever needed. This may
 #sudo -u $user $virtenv/bin/pip freeze
 echo "Checking for setup.py dependencies..."
 #sudo -u $user
-pip install --upgrade --no-deps . #>/dev/null
-pip install .
+pip install --upgrade --no-deps . >/dev/null
+pip install . >/dev/null
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
@@ -123,7 +126,7 @@ then
   echo "Pygame is already installed."
 else
   echo "Pygame is not installed. Installing..."
-  apt-get install -y python-pygame #>/dev/null
+  apt-get install -y python-pygame >/dev/null
   echo "Done."
 fi
 echo "Done."
@@ -136,4 +139,8 @@ echo "Done."
 #sudo -u $user $virtenv/bin/pip freeze
 # echo "Deactivating Virtualenv"
 #sudo -u $user deactivate
+pdir="MLslippage/plots"
+fdir="MLslippage/features"
+[ -d $pdir ] || mkdir $pdir
+[ -d $fdir ] || mkdir $fdir
 echo "Finished Setup!"

@@ -148,7 +148,7 @@ if not os.path.isfile(datafiles2):
         f.write(data)
 else:
     print 'Necessary ',datafiles2,' already here!'
-########################################## Download pretrained ML Classifiers models ###############################
+########################################## Download pretrained ML Classifiers models and names #####################
 clfmodelfile = 'trained_classifiers.npz'
 if not os.path.isfile(clfmodelfile):
     downclf = "https://www.dropbox.com/s/po9m048ukqt1ahn/trained_classifiers.npz?dl=1"
@@ -160,6 +160,17 @@ if not os.path.isfile(clfmodelfile):
         f.write(data)
 else:
     print clfmodelfile,' already here!'
+clfnamefile = 'names_classifiers.npy'
+if not os.path.isfile(clfnamefile):
+    downclfname = "https://www.dropbox.com/s/760y5rlrxukp2bu/names_classifiers.npy?dl=1"
+    u = urllib.urlopen(downclfname)
+    data = u.read()
+    print 'Completed downloading ',len(data)*1./(1024**2),'MB of ',clfnamefile,'!'
+    u.close()
+    with open(clfnamefile, "wb") as f :
+        f.write(data)
+else:
+    print clfnamefile,' already here!'
 
 ########################################## READ THE DATASETS #######################################################
 ####################### DATASET 1-2, including slip instances for pillbox object ###################################

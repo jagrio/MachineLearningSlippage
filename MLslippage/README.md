@@ -11,8 +11,8 @@ This package requires:
 * `python2.7`, `pip`, `ipython`, `jupyter`, `setuptools`
 * From python you may need the latest versions of the following packages as well, if not already installed:
   - `numpy`
-  - `scipy`
-  - `pygame`
+  - `scipy` (depending on `gfortran`, `libatlas-base-dev`, `liblapack-dev` as well)
+  - `pygame` (depending on `libpng12-dev` and `libfreetype6-dev` as well)
   - `matplotlib`
   - `scikit-learn`
   - `nitime`

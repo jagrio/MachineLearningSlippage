@@ -142,7 +142,7 @@ echo "Done."
 #sudo -u $user deactivate
 pdir="MLslippage/plots"
 fdir="MLslippage/features"
-su jagrio << EOF
+su $user << EOF
 [ -d $pdir ] || mkdir $pdir
 [ -d $fdir ] || mkdir $fdir
 EOF

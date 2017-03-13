@@ -118,6 +118,7 @@ pip install . >/dev/null
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
 apt-get update >/dev/null
+apt-get remove -y python-matplotlib
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>/dev/null`
 echo $tmp
@@ -141,6 +142,8 @@ echo "Done."
 #sudo -u $user deactivate
 pdir="MLslippage/plots"
 fdir="MLslippage/features"
+su jagrio << EOF
 [ -d $pdir ] || mkdir $pdir
 [ -d $fdir ] || mkdir $fdir
+EOF
 echo "Finished Setup!"

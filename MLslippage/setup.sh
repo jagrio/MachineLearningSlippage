@@ -118,7 +118,7 @@ pip install . >/dev/null
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
 apt-get update >/dev/null
-apt-get remove -y python-matplotlib
+#apt-get remove -y python-matplotlib
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>/dev/null`
 echo $tmp

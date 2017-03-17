@@ -134,7 +134,7 @@ pip install -r $MY_PATH/requirements.txt >&$out
 apt-get update >&$out
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>&$out`
-echo $tmp
+#echo $tmp
 if [ $tmp ] #tmp length is not zero
 then
   echo "Pygame is already installed."

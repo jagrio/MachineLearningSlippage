@@ -6,7 +6,7 @@ python:
   - "2.7"
 
 before_install:
-  - sudo apt-get -y -pp update
+  - sudo apt-get -y -qq update
   - sudo apt-get install -y --only-upgrade python-pip
   - sudo apt-get install -y ipython
   - sudo pip install setuptools

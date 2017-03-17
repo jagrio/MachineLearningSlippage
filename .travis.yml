@@ -1,7 +1,29 @@
+dist: trusty
+sudo: required
+
 language: python
 python:
   - "2.7"
 
-before_script: true
+before_install:
+  - sudo apt-get -y update
+  - sudo apt-get install -y --only-upgrade python-pip
+  - sudo apt-get install -y ipython
+  - sudo pip install setuptools
+  - sudo pip install jupyter
+  - sudo apt-get install -y libfreetype6-dev libxft-dev libpng12-dev
+  - sudo apt-get install -y gfortran libatlas-base-dev liblapack-dev
 
-script: sudo ./MLslippage/setup.sh
+install:
+  - sudo pip install --upgrade --no-deps -r /MLslippage/requiremensts.txt
+  - sudo pip install -r /MLslippage/requiremensts.txt
+
+after_install:
+  - sudo apt-get install -y python-pygame
+
+script:
+  - ./MLslippage/MLslippage/test.py
+
+#before_script: true
+
+#script: sudo ./MLslippage/setup.sh

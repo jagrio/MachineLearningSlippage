@@ -15,7 +15,7 @@ setup(
     name='MLslippage',
     author='jagrio',
     author_email='jagrio@iti.gr',
-    packages=['MLslippage'],
+    #packages=['MLslippage'],
     # entry_points={
     #     'console_scripts' : [
     #         'mycommand = ?',

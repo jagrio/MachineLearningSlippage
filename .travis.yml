@@ -17,7 +17,7 @@ before_install:
 install:
   - ls
   - pip install --upgrade --no-deps -r MLslippage/requirements.txt
-  - pip install -r /MLslippage/requirements.txt
+  - pip install -r MLslippage/requirements.txt
 
 after_install:
   - sudo apt-get install -y python-pygame

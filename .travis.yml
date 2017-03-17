@@ -4,4 +4,4 @@ python:
 
 before_script: true
 
-script: ./MLslippage/setup.sh
+script: sudo ./MLslippage/setup.sh

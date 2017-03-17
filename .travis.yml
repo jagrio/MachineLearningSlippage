@@ -15,7 +15,6 @@ before_install:
   - sudo apt-get install -y gfortran libatlas-base-dev liblapack-dev
 
 install:
-  - ls
   - pip install --upgrade --no-deps -r MLslippage/requirements.txt
   - pip install -r MLslippage/requirements.txt
 

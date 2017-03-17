@@ -131,9 +131,7 @@ pip install -r $MY_PATH/requirements.txt >&$out
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
-<<<<<<< HEAD
 apt-get update >&$out
->>>>>>> fa91117e256781e91c58a13528c53a86110db4a6
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>&$out`
 echo $tmp

@@ -12,8 +12,8 @@ This package requires:
 * From python you may need the latest versions of the following packages as well, if not already installed:
   - `numpy`
   - `scipy` (depending on `gfortran`, `libatlas-base-dev`, `liblapack-dev` as well)
-  - `pygame` (depending on `libpng12-dev` and `libfreetype6-dev` as well)
-  - `matplotlib`
+  - `pygame`
+  - `matplotlib` (depending on `libpng12-dev`, `libxft-dev `, `libfreetype6-dev` as well)
   - `scikit-learn`
   - `nitime`
 
@@ -31,6 +31,8 @@ You may install the above required packages either by following instructions pub
     ```bash
     sudo apt-get update
     sudo apt-get install python python-pip ipython jupyter
+    sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
+      gfortran libatlas-base-dev liblapack-dev
     sudo pip install -U numpy scipy matplotlib scikit-learn
     sudo apt-get install python-pygame python-nitime
     ```
@@ -40,5 +42,7 @@ You may install the above required packages either by following instructions pub
     ```bash
     sudo apt-get update
     sudo apt-get install python python-pip ipython jupyter
+    sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
+      gfortran libatlas-base-dev liblapack-dev
     sudo easy_install --upgrade numpy scipy pygame matplotlib scikit-learn nitime
     ```

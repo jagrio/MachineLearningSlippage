@@ -13,7 +13,8 @@ if [[ $1 == 1 ]]; then
   out='1'
 else
   echo "Release mode: suppressing most output!"
-  out='/dev/null'
+  exec 3>/dev/null
+  out='3'
 fi
 # Find current user, not root of course!
 user=`who am I | awk '{print $1}'`

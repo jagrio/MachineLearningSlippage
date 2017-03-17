@@ -38,7 +38,3 @@ import re
 import datetime
 import urllib
 import tarfile
-
-fig = plt.figure(figsize=(6,2))
-fig.suptitle(str(i)+str(j), fontsize=14, fontweight='bold')
-ax = fig.add_subplot(141, projection='3d')

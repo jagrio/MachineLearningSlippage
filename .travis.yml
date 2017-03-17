@@ -10,14 +10,14 @@ before_install:
   - sudo apt-get install -y --only-upgrade python-pip
   - sudo apt-get install -y ipython
   - pip install setuptools
-  - sudo -H pip install jupyter
+  - pip install jupyter
   - sudo apt-get install -y libfreetype6-dev libxft-dev libpng12-dev
   - sudo apt-get install -y gfortran libatlas-base-dev liblapack-dev
 
 install:
   - ls
-  - pip install --upgrade --no-deps -r MLslippage/requiremensts.txt
-  - pip install -r ./MLslippage/requiremensts.txt
+  - pip install --upgrade --no-deps -r MLslippage/requirements.txt
+  - pip install -r /MLslippage/requiremensts.txt
 
 after_install:
   - sudo apt-get install -y python-pygame

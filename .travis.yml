@@ -14,14 +14,14 @@ before_install:
   - sudo apt-get install -y python2.7 python2.7-dev
   - sudo apt-get install -y --only-upgrade python-pip
   - sudo apt-get install -y ipython
-  - pip install --user setuptools
-  - pip install --user jupyter
+  - pip install setuptools
+  - pip install jupyter
   - sudo apt-get install -y libfreetype6-dev libxft-dev libpng12-dev
   - sudo apt-get install -y gfortran libatlas-base-dev liblapack-dev
 
 install:
-  - pip install --user --upgrade --no-deps -r MLslippage/requirements.txt
-  - pip install --user -r MLslippage/requirements.txt
+  - pip install --upgrade --no-deps -r MLslippage/requirements.txt
+  - pip install -r MLslippage/requirements.txt
   - sudo apt-get install -y python-pygame
 
 script:

@@ -23,7 +23,4 @@ after_install:
 
 script:
   - ./MLslippage/MLslippage/test.py
-
-#before_script: true
-
-#script: sudo ./MLslippage/setup.sh
+  - sudo ./MLslippage/setup.sh

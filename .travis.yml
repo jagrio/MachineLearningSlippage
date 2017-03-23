@@ -7,21 +7,23 @@ python:
 
 before_install:
   - sudo apt-get -y -qq update
+  - sudo apt-get -y install python-software-properties
+  - sudo apt-get -y install software-properties-common
+  - sudo add-apt-repository -y ppa:fkrull/deadsnakes-python2.7
+  - sudo apt-get -y -qq update
+  - sudo apt-get install -y python2.7 python2.7-dev
   - sudo apt-get install -y --only-upgrade python-pip
   - sudo apt-get install -y ipython
-  - pip install setuptools
-  - pip install jupyter
+  - pip install --user setuptools
+  - pip install --user jupyter
   - sudo apt-get install -y libfreetype6-dev libxft-dev libpng12-dev
   - sudo apt-get install -y gfortran libatlas-base-dev liblapack-dev
 
 install:
-  - pip install --upgrade --no-deps -r MLslippage/requirements.txt
-  - pip install -r MLslippage/requirements.txt
-
-after_install:
+  - pip install --user --upgrade --no-deps -r MLslippage/requirements.txt
+  - pip install --user -r MLslippage/requirements.txt
   - sudo apt-get install -y python-pygame
 
 script:
   - ./MLslippage/MLslippage/test.py
-  - sudo -H ./MLslippage/setup.sh
-  - pip freeze
+  - sudo ./MLslippage/setup.sh 1

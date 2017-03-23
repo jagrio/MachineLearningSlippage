@@ -91,10 +91,12 @@ fi
 
 # pwd=$PWD
 # cd /tmp
+su $user << EOF
 echo "Installing or Updating setuptools ..."
-pip install -U setuptools >&$out
+pip install --user -U setuptools >&$out
 echo "Installing or Updating jupyter ..."
-pip install -U jupyter >&$out
+pip install --user -U jupyter >&$out
+EOF
 echo "Installing freetype ... (matplotlib dependency)"
 apt-get install -y libfreetype6-dev libxft-dev >&$out
 echo "Installing png ... (matplotlib dependency)"
@@ -128,12 +130,14 @@ echo "Checking for setup.py dependencies..."
 #sudo -u $user
 #pip install --upgrade --no-deps . >&$out
 #pip install . >&$out
-pip install --upgrade --no-deps -r $MY_PATH/requirements.txt >&$out
-pip install -r $MY_PATH/requirements.txt >&$out
+su $user << EOF
+pip install --user --upgrade --no-deps -r $MY_PATH/requirements.txt >&$out
+pip install --user -r $MY_PATH/requirements.txt >&$out
+EOF
 # su $user << EOF
 # ${virtenv}/bin/pip install -U --no-deps .
 # EOF
-apt-get update >&$out
+#apt-get update >&$out
 echo "Checking for pygame..."
 tmp=`python -c "import pygame; print pygame.__version__" 2>&$out`
 #echo $tmp

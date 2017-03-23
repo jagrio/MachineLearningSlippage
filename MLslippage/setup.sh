@@ -89,6 +89,8 @@ fi
 #     echo "Done."
 # fi
 
+#pwd=$PWD
+cd /tmp
 echo "Installing or Updating setuptools ..."
 pip install -U setuptools >&$out
 echo "Installing or Updating jupyter ..."

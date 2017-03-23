@@ -842,3 +842,13 @@ for i in range(len(names)):
     print meantrds[:,i]
     print 'Mean Accuracy of '+str(names[i])+' in classifying alltrainds, alltestds and allft: '
     print meanclf1[i],' or mean(', tmpout[-1,:,-1,i],') = ',meantsds[-1,-1,i]
+################################# Saving STD, FEATSEL, PCA, ML Models for online usage #############################
+modelfile='allmodels.npz'
+if not os.path.isfile(modelfile):
+    np.savez(modelfile,clfall=np.array(clfall),bestsel=bestix,stdtran=S,pca=pca)
+else:
+    clfall = np.load(modelfile)['clfall']
+    bestsel = np.load(modelfile)['bestsel']
+    stdtran = np.load(modelfile)['stdtran']
+    pca = np.load(modelfile)['pca']
+    print np.array(clfall).shape, bestsel.shape, stdtran.shape, pca.shape

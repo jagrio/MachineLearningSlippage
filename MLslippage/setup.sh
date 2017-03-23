@@ -89,8 +89,8 @@ fi
 #     echo "Done."
 # fi
 
-#pwd=$PWD
-cd /tmp
+# pwd=$PWD
+# cd /tmp
 echo "Installing or Updating setuptools ..."
 pip install -U setuptools >&$out
 echo "Installing or Updating jupyter ..."
@@ -155,6 +155,7 @@ echo "Done."
 #sudo -u $user $virtenv/bin/pip freeze
 # echo "Deactivating Virtualenv"
 #sudo -u $user deactivate
+# cd $pwd
 pdir="$MY_PATH/MLslippage/plots"
 fdir="$MY_PATH/MLslippage/features"
 su $user << EOF

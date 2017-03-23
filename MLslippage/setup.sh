@@ -161,5 +161,6 @@ fdir="$MY_PATH/MLslippage/features"
 su $user << EOF
 [ -d $pdir ] || mkdir $pdir
 [ -d $fdir ] || mkdir $fdir
+pip freeze
 EOF
 echo "Finished Setup!"

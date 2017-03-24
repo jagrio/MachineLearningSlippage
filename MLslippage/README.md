@@ -18,7 +18,7 @@ This package requires:
   - `nitime`
 
 ## How to setup
-You may install the above required packages either by following instructions publicly available online, or trying one of the choices below (with precaution):
+You may install the above required packages either by following instructions publicly available online, or trying one of the choices below:
 
   * The automated way:
 
@@ -26,18 +26,18 @@ You may install the above required packages either by following instructions pub
     sudo ./setup.sh
     ```
   * The old-school way:
-    - either (preferred)
+    <!-- - either (preferred) -->
 
     ```bash
     sudo apt-get update
     sudo apt-get install python python-pip ipython jupyter
     sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
       gfortran libatlas-base-dev liblapack-dev
-    sudo pip install -U numpy scipy matplotlib scikit-learn
+    pip install --user -U numpy scipy matplotlib scikit-learn
     sudo apt-get install python-pygame python-nitime
     ```
 
-    - or
+    <!-- - or
 
     ```bash
     sudo apt-get update
@@ -45,4 +45,4 @@ You may install the above required packages either by following instructions pub
     sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
       gfortran libatlas-base-dev liblapack-dev
     sudo easy_install --upgrade numpy scipy pygame matplotlib scikit-learn nitime
-    ```
+    ``` -->

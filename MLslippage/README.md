@@ -30,10 +30,14 @@ You may install the above required packages either by following instructions pub
 
     ```bash
     sudo apt-get update
-    sudo apt-get install python python-pip ipython jupyter
+    sudo apt-get install build-essential python2.7 python2.7-dev \
+      python-pip ipython
     sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
       gfortran libatlas-base-dev liblapack-dev
-    pip install --user -U requirements.txt
+    pip install --user -U setuptools
+    pip install --user -U jupyter 
+    pip install --user --upgrade --no-deps -r requirements.txt
+    pip install --user -r requirements.txt
     sudo apt-get install python-pygame
     ```
 

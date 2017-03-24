@@ -26,10 +26,11 @@ user=`who am I | awk '{print $1}'`
 echo "Starting Setup!"
 echo "Updating Repositories ..."
 apt-get update >&$out 2>&1
-apt-get -y install python-software-properties >&$out 2>&1
-apt-get -y install software-properties-common >&$out 2>&1
-add-apt-repository -y ppa:fkrull/deadsnakes-python2.7 >&$out 2>&1
-apt-get update >&$out 2>&1
+# apt-get -y install python-software-properties >&$out 2>&1
+# apt-get -y install software-properties-common >&$out 2>&1
+# add-apt-repository -y ppa:fkrull/deadsnakes-python2.7 >&$out 2>&1
+apt-get install build-essential
+# apt-get update >&$out 2>&1
 echo "Checking for Python version 2.7 ..."
 if which python >&$out 2>&1;
 then
@@ -37,12 +38,12 @@ then
     pv=`python --version 2>&1 | awk '{print $2}'`
     if [[ $pv == *"2.7"* ]]
     then
-      echo "Python version $pv is already installed. Upgrading ..."
+      echo "Python version $pv is already installed. Upgrading..."
       apt-get install -y python2.7 python2.7-dev >&$out
     # else
     #   echo "Python version $pv is installed. Installing 2.7 as well..."
     #   apt-get install -y python2.7 python2.7-dev >&$out
-    #   echo "Done."
+      echo "Done."
     fi
 else
     #Python is not installed

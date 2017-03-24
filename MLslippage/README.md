@@ -33,8 +33,10 @@ You may install the above required packages either by following instructions pub
     sudo apt-get install python python-pip ipython jupyter
     sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
       gfortran libatlas-base-dev liblapack-dev
-    pip install --user -U numpy scipy matplotlib scikit-learn
-    sudo apt-get install python-pygame python-nitime
+    # pip install --user -U numpy scipy matplotlib scikit-learn
+    pip install --user -U requirements.txt
+    # sudo apt-get install python-pygame python-nitime
+    sudo apt-get install python-pygame
     ```
 
     <!-- - or

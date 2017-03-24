@@ -21,6 +21,9 @@ python:
 #   - pip install -r MLslippage/requirements.txt
 #   - sudo apt-get install -y python-pygame
 
-script:
+install:
   - sudo ./MLslippage/setup.sh 1
+
+script:
+  - pip freeze
   - ./MLslippage/MLslippage/test.py

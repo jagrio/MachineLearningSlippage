@@ -3,7 +3,7 @@ import time
 # start_time = time.time()
 from copy import deepcopy
 import math
-import scipy.io as sio
+# import scipy.io as sio
 import shutil
 import os
 from random import shuffle
@@ -38,3 +38,4 @@ import re
 import datetime
 import urllib
 import tarfile
+import scipy.io as sio

@@ -24,6 +24,6 @@ install:
 script:
   - sudo ./MLslippage/setup.sh 1
 
-after script:
+after_script:
   - pip freeze
   - ./MLslippage/MLslippage/test.py

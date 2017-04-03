@@ -22,8 +22,8 @@ install:
   - sudo apt-get install -y python-pygame
 
 script:
-  - sudo ./MLslippage/setup.sh 1
+  - sudo ./MLslippagesrc/setup.sh 1
 
 after_script:
   - pip freeze
-  - ./MLslippage/MLslippage/test.py
+  - ./MLslippagesrc/MLslippage/test.py

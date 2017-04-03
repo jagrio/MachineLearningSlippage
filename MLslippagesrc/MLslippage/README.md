@@ -6,7 +6,7 @@ Training of Machine Learning Classifiers for Slippage Detection during grasping 
 
 ## How to use
 
-Initially folders `features` and `plots` are empty and they fill up by usage of components described below.
+Initially folders `data` and `plots` are empty and they fill up by usage of components described below.
 
 ### Requirements
 

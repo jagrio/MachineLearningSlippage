@@ -1,4 +1,5 @@
-/MLslippage/MLslippage/*/*
-/MLslippage/MLslippage/*.npz
-/MLslippage/MLslippage/*.mat
-/MLslippage/MLslippage/*.pyc
+/MLslippagesrc/MLslippage/*/*.*
+/MLslippagesrc/MLslippage/*/*/*.*
+/MLslippagesrc/MLslippage/.*/*
+/MLslippagesrc/MLslippage/*.np*
+/MLslippagesrc/MLslippage/*.pyc

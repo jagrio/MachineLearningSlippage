@@ -166,10 +166,10 @@ echo "Done."
 #sudo -u $user deactivate
 # cd $pwd
 pdir="$MY_PATH/MLslippage/plots"
-fdir="$MY_PATH/MLslippage/features"
+fdir="$MY_PATH/MLslippage/data/features"
 su $user << EOF
-[ -d $pdir ] || mkdir $pdir
-[ -d $fdir ] || mkdir $fdir
+[ -d $pdir ] || mkdir -p $pdir
+[ -d $fdir ] || mkdir -p $fdir
 pip freeze
 EOF
 echo "Finished Setup!"

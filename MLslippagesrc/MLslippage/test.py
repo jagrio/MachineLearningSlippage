@@ -39,3 +39,5 @@ import datetime
 import urllib
 import tarfile
 import scipy.io as sio
+
+sys.exit(0)

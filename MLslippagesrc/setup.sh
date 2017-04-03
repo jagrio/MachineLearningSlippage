@@ -135,6 +135,7 @@ echo "Checking for setup.py dependencies..."
 #sudo -u $user
 #pip install --upgrade --no-deps . >&$out
 #pip install . >&$out
+ls
 su $user << EOF
 pip install --user --upgrade --no-deps -r $MY_PATH/requirements.txt >&$out
 pip install --user -r $MY_PATH/requirements.txt >&$out

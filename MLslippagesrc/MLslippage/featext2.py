@@ -289,9 +289,9 @@ def feat(f, havelabel=0, featlabel=0, magnFFT=0, featall=0, returntime=0):
     # #  |------------|---> phinyomark : 11+3{shist} -----------------------------> = 14+0.0samples ||             14  ##
     # #  |------------|---> golz       : 10+samples{acrol} -----------------------> = 10+1.0samples ||           1034  ##
     # #  |----------> frequency domain :                                                                               ##
-    # #  |------------|---> phinyomark : 3{arco}+4{mf}+3(samples/2+1){RF,IF} -----> =  9+1.0samples ||           1033  ##
+    # #  |------------|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} -----> =  9+1.0samples ||           1033  ##
     # #  |------------|---> golz       : 1{ffaf}+2(samples/2+1){AF,PF} -----------> =  3+1.0samples ||           1027  ##
-    # #  |------------|--------|-------alltogether--------------------------------> = 36+3.5samples || numfeat = 3108  ##
+    # #  |------------|--------|-------alltogether--------------------------------> = 36+3.0samples || numfeat = 3108  ##
     # ###################################################################################################################
     if featlabel == 0:  # use both time and frequency domain features
         MF = mf(w)
@@ -299,7 +299,6 @@ def feat(f, havelabel=0, featlabel=0, magnFFT=0, featall=0, returntime=0):
             featlist1 = [intsgnl(w), meanabs(w), meanabsslp(w), ssi(w), var(w), rms(w), rng(w), wavl(w),
                          zerox(w), ssc(w), wamp(w), shist(w), arco(w), (np.concatenate(MF[1:4], axis=0), MF[-1])]
             featlist1 = [np.array(i)[np.newaxis, :] for i in featlist1]
-            # print [i.shape for i in featlist1]
             feat1 = np.concatenate(featlist1, axis=0)
         # redundant feats: rngy same as rng, se same as ssi
         if featall == 2 or featall == 0:
@@ -342,16 +341,21 @@ def feat(f, havelabel=0, featlabel=0, magnFFT=0, featall=0, returntime=0):
         feat = feat1
     elif featall == 2:
         feat = feat2
+    tmpfeat = [feati for feati in feat[:, 0]]
+    tmpfeat = np.concatenate(tmpfeat, axis=0)
+    tmptime = [np.ones((feat[ind, 0].shape[0], 1))*feat[ind, 1] for ind in range(len(feat))]
+    tmptime = np.concatenate(tmptime, axis=0)
+    # print tmptime.shape
     if havelabel == 0:
         if returntime == 0:
-            return feat[0]
+            return tmpfeat
         else:
-            return feat, time.time()
+            return np.concatenate((tmpfeat, tmptime), axis=1), time.time()
     else:
         # assume last column's last element is label
-        l = np.ones((feat.shape[0], 1))*f[-1, -1]
+        l = np.ones((tmpfeat.shape[0], 1))*f[-1, -1]
         if returntime == 0:
             # print feat.shape, l.shape, feat[:,0].shape
-            return np.concatenate((feat[:, 0][:, np.newaxis], l), axis=1)
+            return np.concatenate((tmpfeat, l), axis=1)
         else:
-            return np.concatenate((feat, l), axis=1), time.time()
+            return np.concatenate((np.concatenate((tmpfeat, tmptime), axis=1), l), axis=1), time.time()

@@ -1,5 +1,7 @@
-/MLslippagesrc/MLslippage/*/*.*
-/MLslippagesrc/MLslippage/*/*/*.*
-/MLslippagesrc/MLslippage/.*/*
+#/MLslippagesrc/MLslippage/*/*.*
+#/MLslippagesrc/MLslippage/*/*/*.*
+#/MLslippagesrc/MLslippage/.*/*
+#/MLslippagesrc/MLslippage/*/*
+/MLslippagesrc/MLslippage/*/**
 /MLslippagesrc/MLslippage/*.np*
 /MLslippagesrc/MLslippage/*.pyc

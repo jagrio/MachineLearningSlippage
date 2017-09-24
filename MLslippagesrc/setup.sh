@@ -66,19 +66,19 @@ else
     echo "Done."
 fi
 
-echo "Checking for ipython ..."
-if which ipython >&$out 2>&1;
-then
-    #pip is installed
-    echo "Ipython is installed. Updating..."
-    apt-get install -y --only-upgrade ipython >&$out
-    echo "Done."
-else
-    #pip is not installed
-    echo "Ipython is not installed. Installing..."
-    apt-get install -y ipython >&$out
-    echo "Done."
-fi
+# echo "Checking for ipython ..."
+# if which ipython >&$out 2>&1;
+# then
+#     #pip is installed
+#     echo "Ipython is installed. Updating..."
+#     apt-get install -y --only-upgrade ipython >&$out
+#     echo "Done."
+# else
+#     #pip is not installed
+#     echo "Ipython is not installed. Installing..."
+#     apt-get install -y ipython >&$out
+#     echo "Done."
+# fi
 
 # echo "Checking for jupyter ..."
 # if which jupyter > $out 2>&1;
@@ -99,8 +99,10 @@ fi
 su $user << EOF
 echo "Installing or Updating setuptools ..."
 pip install --user -U setuptools >&$out
-echo "Installing or Updating jupyter ..."
-pip install --user -U jupyter >&$out
+echo "Installing ipython==5.0 ..."
+pip install --user ipython==5.0 >&$out
+echo "Installing jupyter ..."
+pip install --user jupyter >&$out
 EOF
 echo "Installing freetype ... (matplotlib dependency)"
 apt-get install -y libfreetype6-dev libxft-dev >&$out

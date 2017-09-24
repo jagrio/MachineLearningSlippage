@@ -16,6 +16,7 @@ This package requires:
   - `matplotlib` (depending on `libpng12-dev`, `libxft-dev `, `libfreetype6-dev` as well)
   - `scikit-learn`
   - `nitime`
+  - `joblib`
 
 ## How to setup
 You may install the above required packages either by following instructions publicly available online, or trying one of the choices below:
@@ -31,11 +32,12 @@ You may install the above required packages either by following instructions pub
     ```bash
     sudo apt-get update
     sudo apt-get install build-essential python2.7 python2.7-dev \
-      python-pip ipython
+      python-pip
     sudo apt-get install libfreetype6-dev libxft-dev libpng12-dev \
       gfortran libatlas-base-dev liblapack-dev
     pip install --user -U setuptools
-    pip install --user -U jupyter 
+    pip install --user ipython==5.0
+    pip install --user jupyter
     pip install --user --upgrade --no-deps -r requirements.txt
     pip install --user -r requirements.txt
     sudo apt-get install python-pygame

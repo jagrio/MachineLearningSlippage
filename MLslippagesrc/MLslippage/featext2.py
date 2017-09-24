@@ -21,7 +21,6 @@ import os
 from pylab import *
 import random
 import matplotlib.pyplot as plt
-import pywt
 
 threshold = 0.0001
 nbins = 3

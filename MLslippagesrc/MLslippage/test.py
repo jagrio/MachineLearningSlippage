@@ -7,10 +7,12 @@ import shutil
 import os, errno
 from random import shuffle
 import numpy as np
+import matplotlib
 from pylab import *
 from featext import *
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler

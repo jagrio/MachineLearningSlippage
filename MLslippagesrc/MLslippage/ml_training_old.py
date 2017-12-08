@@ -6,11 +6,9 @@ License: BSD 3 clause
 ============= CURRENT CODE USAGE =============
 Current code trains MLP Classifiers, to classify force input samples as stable (0) or slip (1)
 ---- Input
--> Input samples originate from Optoforce and ATI sensors and are 3D (fx,fy,fz) and come into 3 different datasets,
-   one training (Optoforce), containing several surfaces as well as slip-stable occurrences,
-   one validation (Optoforce), containing 1 surface with slip-stable occurrences on a completely unseen task-setup
-   and one testing set acquired from ATI sensor for different normal desired forces, for several low-pass filter cutoff
-   frequencies and for both translational and rotational slipping occurrences.
+-> Input samples originate from optoforce sensors and are 3D (fx,fy,fz) and come from 2 different datasets,
+   one training, containing several surfaces as well as slip-stable occurrences,
+   and one validation, containing 1 surface with slip-stable occurrences on a completely unseen task-setup.
 ---- Input transformation
 -> Several pre-features can be taken from these inputs, but here |f| is kept.
 -> Several time and frequency domain features are extracted from pre-feature windows.
@@ -18,57 +16,11 @@ Current code trains MLP Classifiers, to classify force input samples as stable (
 -> Then a feature selection-ranking is performed using MutualVariableInformation
 -> Finally PCA is performed to keep a reduced set among the best selected features
 ---- Training of ML Classifiers
--> Several MLP Classifiers are trained for all combinations of selected featuresets (using the training Optoforce dataset)
+-> Several MLP Classifiers are trained for all combinations of selected featuresets-datasets
 ---- Results
--> Stats of classification results are kept inside each .npz along with the respective trained model in results* folders
+-> Stats of classification results are kept inside each .npz along with the respective trained model
 """
-# ############################################## EXAMPLE OF CODE USAGE ################################################
-# ############ TRAINING PROCEDURE ##############
-# # necessary steps before training
-# f,l,fd,member,m1,m2 = data_prep(datafile)                      # read input force and labels
-# prefeat = compute_prefeat(f)                                   # compute corresponding prefeatures
-# features, labels = feature_extraction(prefeat, member)         # feature extraction from prefeatures
-# avg_feat_comp_time(prefeat)                                    # average feature extraction time
-# new_labels = label_cleaning(prefeat,labels,member)             # trim labels, around change points
-# X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2)   # compute data and labels, trimmed and untrimmed
-# surf, surfla = computeXY_persurf(Xsp,Ysp)                      # compute per surface data and labels
-# # training
-# train_1_surface(surf,surfla)                                   # training of all combinations per 1 surface
-# train_2_surface(surf,surfla)                                   # training of all combinations per 2 surfaces
-# train_3_surface(surf,surfla)                                   # training of all combinations per 3 surfaces
-# train_4_surface(surf,surfla)                                   # training of all combinations per 4 surfaces
-# train_5_surface(surf,surfla)                                   # training of all combinations per 5 surfaces
-#
-# ############ OFFLINE TESTING PROCEDURE ##############
-# # generate files with stats
-# bargraph_perf_gen1(6)
-# bargraph_perf_gen2(6)
-# bargraph_perf_gen3(6)
-# bargraph_perf_gen4(6)
-# bargraph_perf_gen5(6)
-# # use the bargraph tool to plot graphs from generated files
-# # -left column cross-accuracy (trained on one, tested on all the others),
-# # -right column self-accuracy (trained and tested on the same)
-# # -each row i represents training only with i surfaces.
-# # -each stack represents a training group, each bar represents a subfeatureset(AFFT,FREQ,TIME,BOTH)
-# # -blue,green,yellow,red : TP,TN,FN,FP
-# plt.figure(figsize=(20,40))
-# for i in range(5):
-#     make_bargraphs_from_perf(i)
-#
-# ############ ONLINE TESTING PROCEDURE ##############
-# # same necessary steps as in training
-# f,l,fd,member,m1,m2 = data_prep(validfile)
-# prefeat = compute_prefeat(f)
-# features, labels = feature_extraction(prefeat, member, validfeatfile, 'validfeat_')
-# new_labels = label_cleaning(prefeat,labels,member)
-# X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,validXYfile,validXYsplitfile)
-# surf, surfla = computeXY_persurf(Xsp,Ysp,validsurffile)
-#
-# ####### TESTING DATA FROM ATI F/T SENSOR TRANSLATIONAL CASE
-# prediction('ati_new_fd1.5N_kp3_152Hz_validation.mat')
-# ####### TESTING DATA FROM ATI F/T SENSOR ROTATIONAL CASE
-# prediction('ati_new_fd1.5N_kp3_152Hz_validation_rot.mat')
+print(__doc__)
 import time
 start_time = time.time()
 from copy import deepcopy, copy
@@ -78,9 +30,12 @@ import shutil
 import os, errno
 from random import shuffle
 import numpy as np
+import matplotlib
 from pylab import *
 from featext import *
 import matplotlib.pyplot as plt
+# %matplotlib qt
+# inline (suitable for ipython only, shown inside browser!) or qt (suitable in general, shown in external window!)
 from matplotlib.colors import ListedColormap
 import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
@@ -124,6 +79,8 @@ def ensure_dir(directory):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+
+h = .2  # step size in the mesh
 
 ######## TRAINING DEFAULTS
 cv = KFold(n_splits=5,random_state=42)
@@ -173,19 +130,17 @@ validsurffile = featpath+validfeatname+'_2fing_6surf.npz'
 validXYfile = featpath+validfeatname+'_XY.npz'
 validXYsplitfile = featpath+validfeatname+'_XYsplit.npz'
 respath = datapath+'results'
-toolfile = datapath+'bargraph.zip'
-toolpath = datapath+'bargraph-rel_4_8/'
-tool = './'+toolpath+'bargraph.pl'
 
-############ Feature Names ###########
-"""features:                                                                       ||      if\n"""+\
-"""|--> time domain      :                                                         || samples = 1024\n"""+\
-"""|----|---> phinyomark : 11+3{shist} --------------------------> = 14+0.0samples ||             14\n"""+\
-"""|----|---> golz       : 10+samples{acrol} --------------------> = 10+1.0samples ||           1034\n"""+\
-"""|--> frequency domain :\n"""+\
-"""|----|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} --> =  9+1.0samples ||           1033\n"""+\
-"""|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
-"""|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
+############ Feature Names ############
+"""features:                                                                       ||      if
+   |--> time domain      :                                                         || samples = 1024
+   |----|---> phinyomark : 11+3{shist} --------------------------> = 14+0.0samples ||             14
+   |----|---> golz       : 10+samples{acrol} --------------------> = 10+1.0samples ||           1034
+   |--> frequency domain :
+   |----|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} --> =  9+1.0samples ||           1033
+   |----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026
+   |----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107
+"""
 ## Time Domain Phinyomark feats
 featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
              'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
@@ -199,48 +154,6 @@ featnames += ['acrol{:04d}'.format(i) for i in range(window)]                   
 ## Frequency Domain Golz feats
 featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
 featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
-
-def comb(n,r):
-    """Combinations of n objects by r, namely picking r among n possible.
-    comb(n,r) = n!/(r!(n-r)!)
-    """
-    return math.factorial(n)/(math.factorial(r)*math.factorial(n-r))
-
-############ PRE-FEATURES ############
-###### DEFINITION
-# featnum 0 : sf    = (fx^2+fy^2+fz^2)^0.5
-#         1 : ft    = (fx^2+fy^2)^0.5
-#         2 : fn    = |fz|
-#         3 : ft/fn = (fx^2+fy^2)^0.5/|fz|
-# input (nxm) -> keep (nx3) -> compute pre-feature and return (nx1)
-def sf(f):
-    """Computation of norm (sf) of force (f)"""
-    return np.power(np.sum(np.power(f[:,:3],2),axis=1),0.5)
-def ft(f):
-    """Computation of tangential (ft) of force (f)"""
-    return np.power(np.sum(np.power(f[:,:2],2),axis=1),0.5)
-def fn(f):
-    """Computation of normal (fn) of force (f)"""
-    return np.abs(f[:,2])
-def ftn(f):
-    """Computation of tangential (ft) to normal (fn) ratio of force (f),
-    corresponding to the friction cone boundary
-    """
-    retft = ft(f)
-    retfn = fn(f)
-    retft[retfn<=1e-2] = 0
-    return np.divide(retft,retfn+np.finfo(float).eps)
-def lab(f):
-    """Label embedded in input f"""
-    return np.abs(f[:,-1])
-
-############ PREFEATURES #############
-prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
-prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
-prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
-
-############ SUBFEATURES #############
-subfeats = ['AFFT','FREQ','TIME','BOTH']
 
 ############ Download necessary files ############
 def convert_bytes(num):
@@ -289,51 +202,50 @@ def extract_file(source,destination='.'):
     else:
         print "Unsupported extension for decompressing. Supported extensions are .zip, .tgz, .tar.gz, .tar"
 
-######### Download necessary dataset #############
-def download_required_files(download=1):
-    total_size_of_downloads = 0
-    # datafile = datapath+'dataset.npz'
-    # validfile = datapath+'validation.mat'
-    datalink = 'https://www.dropbox.com/s/j88wmtx1vvpik1m/dataset.npz?dl=1'
-    validlink = 'https://www.dropbox.com/s/r8jl57lij28ljrw/validation.mat?dl=1'
-    total_size_of_downloads += download_file(datafile, datalink)
-    total_size_of_downloads += download_file(validfile, validlink)
-    ####### Download bargraph tool if not already downloaded (by Derek Bruening)
-    toollink = 'https://github.com/derekbruening/bargraph/archive/rel_4_8.zip'
-    # toolfile = datapath+'bargraph.zip'
-    # toolpath = datapath+'bargraph-rel_4_8/'
-    if not os.path.isdir(toolpath):
-        total_size_of_downloads += download_file(toolfile, toollink)
-        if os.path.isfile(toolfile):
-            extract_file(toolfile,datapath+'.')
-    # tool = './'+toolpath+'bargraph.pl'
-    call(['chmod','+x',tool]) # make tool executable
-    call(['rm',toolfile]) # delete zip file
-    ####### Download features and trained models, if not wanting to compute them and not already there
-    if download==1:
-        featlink = 'https://www.dropbox.com/s/qvk9pcvlir06zse/features_1024_20_10000.npz?dl=1'
-        validfeatlink = 'https://www.dropbox.com/s/sghqwifo8rxwbcs/validfeatures_1024_20_10000.npz?dl=1'
-        total_size_of_downloads += download_file(featfile, featlink)
-        total_size_of_downloads += download_file(validfeatfile, validfeatlink)
-        reslink = {}
-        reslink[0] = 'https://www.dropbox.com/sh/mib7wk4sfv6eye3/AACUWSOgQjBD9i2sChtNisNKa?dl=1'
-        reslink[1] = 'https://www.dropbox.com/sh/y6js9ha585n4zam/AACARvB8krZnC3VPsOjWTaRra?dl=1'
-        reslink[2] = 'https://www.dropbox.com/sh/fc9jgi2cs7d0dzg/AADfw42xG0XtiUOYWo7cmmtUa?dl=1'
-        reslink[3] = 'https://www.dropbox.com/sh/mx6e7jcxzbcr5s4/AACkVMPatRd2UZfyUkxvP_tLa?dl=1'
-        reslink[4] = 'https://www.dropbox.com/sh/88itj3b4nwpe0f1/AACceO9FsZp5w55n7PKlVnWSa?dl=1'
-        for i in range(len(reslink)):
-            resfold = datapath+'results'+str(i+1)
-            if not os.path.isdir(resfold):
-                resfile = resfold+'.zip'
-                total_size_of_downloads += download_file(resfile, reslink[i]) # download
-                extract_file(resfile, resfold) # extract
-                call(['rm',resfile]) # delete zip
-            else:
-                print "Desired trained models for "+str(i+1)+" surface found!"
-    print "Downloaded "+convert_bytes(total_size_of_downloads)+" of content in total!"
+####### Download necessary dataset
+total_size_of_downloads = 0
+datafile = datapath+'dataset.npz'
+validfile = datapath+'validation.mat'
+datalink = 'https://www.dropbox.com/s/j88wmtx1vvpik1m/dataset.npz?dl=1'
+validlink = 'https://www.dropbox.com/s/r8jl57lij28ljrw/validation.mat?dl=1'
+total_size_of_downloads += download_file(datafile, datalink)
+total_size_of_downloads += download_file(validfile, validlink)
+####### Download bargraph tool if not already downloaded (by Derek Bruening)
+toollink = 'https://github.com/derekbruening/bargraph/archive/rel_4_8.zip'
+toolfile = datapath+'bargraph.zip'
+toolpath = datapath+'bargraph-rel_4_8/'
+if not os.path.isdir(toolpath):
+    total_size_of_downloads += download_file(toolfile, toollink)
+    if os.path.isfile(toolfile):
+        extract_file(toolfile,datapath+'.')
+tool = './'+toolpath+'bargraph.pl'
+call(['chmod','+x',tool]) # make tool executable
+call(['rm',toolfile]) # delete zip file
+####### Download features and trained models, if not wanting to compute them and not already there
+if download==1:
+    featlink = 'https://www.dropbox.com/s/qvk9pcvlir06zse/features_1024_20_10000.npz?dl=1'
+    validfeatlink = 'https://www.dropbox.com/s/sghqwifo8rxwbcs/validfeatures_1024_20_10000.npz?dl=1'
+    total_size_of_downloads += download_file(featfile, featlink)
+    total_size_of_downloads += download_file(validfeatfile, validfeatlink)
+    reslink = {}
+    reslink[0] = 'https://www.dropbox.com/sh/mib7wk4sfv6eye3/AACUWSOgQjBD9i2sChtNisNKa?dl=1'
+    reslink[1] = 'https://www.dropbox.com/sh/y6js9ha585n4zam/AACARvB8krZnC3VPsOjWTaRra?dl=1'
+    reslink[2] = 'https://www.dropbox.com/sh/fc9jgi2cs7d0dzg/AADfw42xG0XtiUOYWo7cmmtUa?dl=1'
+    reslink[3] = 'https://www.dropbox.com/sh/mx6e7jcxzbcr5s4/AACkVMPatRd2UZfyUkxvP_tLa?dl=1'
+    reslink[4] = 'https://www.dropbox.com/sh/88itj3b4nwpe0f1/AACceO9FsZp5w55n7PKlVnWSa?dl=1'
+    for i in range(len(reslink)):
+        resfold = datapath+'results'+str(i+1)
+        if not os.path.isdir(resfold):
+            resfile = resfold+'.zip'
+            total_size_of_downloads += download_file(resfile, reslink[i]) # download
+            extract_file(resfile, resfold) # extract
+            call(['rm',resfile]) # delete zip
+        else:
+            print "Desired trained models for "+str(i+1)+" surface found!"
+print "Downloaded "+convert_bytes(total_size_of_downloads)+" of content in total!"
 
 ############ READ THE DATASET ############
-def data_prep(datafile,step=1,k=2,printit=True):
+def data_prep(datafile,step=1,k=2):
     """Prepare dataset, from each of the k fingers for all n surfaces (see fd for details)
     -> datafile : input file either in .npz or in .mat form
     -> step     : increasing sampling step, decreases sampling frequency of input, which is 1KHz initially
@@ -346,8 +258,7 @@ def data_prep(datafile,step=1,k=2,printit=True):
                   to skip samples effectively and keep dimensions correct
     <- m1, m2   : portion of data belonging to finger1 and finger2
     """
-    if printit:
-        print "---------------------------- LOADING DATA and COMPUTING NECESSARY STRUCTS ----------------------------"
+    print "---------------------------- LOADING DATA and COMPUTING NECESSARY STRUCTS ----------------------------"
     if datafile[-3:]=='mat':
         inp = sio.loadmat(datafile,struct_as_record=True)
     elif datafile[-3:]=='npz':
@@ -357,9 +268,8 @@ def data_prep(datafile,step=1,k=2,printit=True):
         return -1
     if k==2:
         f1, f2, l1, l2, fd1, fd2 = inp['f1'], inp['f2'], inp['l1'], inp['l2'], inp['fd1'], inp['fd2']
-        if printit:
-            print 1, '-> f1:', f1.shape, l1.shape, fd1.shape
-            print 2, '-> f2:', f2.shape, l2.shape, fd2.shape
+        print 1, '-> f1:', f1.shape, l1.shape, fd1.shape
+        print 2, '-> f2:', f2.shape, l2.shape, fd2.shape
         ####### MERGE THE DATASETS
         f = np.concatenate((f1,f2),axis=0)
         l = np.concatenate((l1,l2),axis=0)
@@ -368,16 +278,14 @@ def data_prep(datafile,step=1,k=2,printit=True):
         f, l, fd = inp['f'], inp['l'], inp['fd']
     else:
         print "Unsupported number of fingers k. Should be k in {1,2}"
-    if printit:
-        print 3, '-> f:', f.shape, l.shape, fd.shape
+    print 3, '-> f:', f.shape, l.shape, fd.shape
     # membership of each sample, representing its portion in the dataset
     # (first half finger1 and second half finger2)
     member = np.zeros(len(f))
     m1,m2 = len(f)/2, len(f)/2
     member[:m1] = np.ones(m1)*1./m1
     member[-m2:] = np.ones(m2)*1./m2
-    if printit:
-        print 4, '-> m1,m2:', m1, m2, sum(member[:m1]), sum(member[-m2:])
+    print 4, '-> m1,m2:', m1, m2, sum(member[:m1]), sum(member[-m2:])
     ####### MERGE f and l
     while f.ndim>1:
         f = f[:,0]
@@ -386,14 +294,12 @@ def data_prep(datafile,step=1,k=2,printit=True):
         while l[i].ndim<2:
             l[i] = l[i][:,np.newaxis]
     f = np.array([np.concatenate((f[i],l[i]),axis=1) for i in range(len(f))])
-    if printit:
-        print 5, '-> f=f+l:', f.shape, ":", [fi.shape for fi in f]
+    print 5, '-> f=f+l:', f.shape, ":", [fi.shape for fi in f]
     ####### SUBSAMPLING
     # step = 1 # NO SAMPLING
     if step!=1:
         f = np.array([fi[::step,:] for fi in f])
-        if printit:
-            print 6, '-> fsampled:',f.shape, ":", [fi.shape for fi in f]
+        print 6, '-> fsampled:',f.shape, ":", [fi.shape for fi in f]
     return f,l,fd,member,m1,m2
 
 ############ PRE-FEATURES ############
@@ -403,37 +309,54 @@ def data_prep(datafile,step=1,k=2,printit=True):
 #         2 : fn    = |fz|
 #         3 : ft/fn = (fx^2+fy^2)^0.5/|fz|
 # input (nxm) -> keep (nx3) -> compute pre-feature and return (nx1)
+
+def sf(f):
+    """Computation of norm (sf) of force (f)"""
+    return np.power(np.sum(np.power(f[:,:3],2),axis=1),0.5)
+def ft(f):
+    """Computation of tangential (ft) of force (f)"""
+    return np.power(np.sum(np.power(f[:,:2],2),axis=1),0.5)
+def fn(f):
+    """Computation of normal (fn) of force (f)"""
+    return np.abs(f[:,2])
+def ftn(f):
+    """Computation of tangential (ft) to normal (fn) ratio of force (f),
+    corresponding to the friction cone boundary
+    """
+    retft = ft(f)
+    retfn = fn(f)
+    retft[retfn<=1e-2] = 0
+    return np.divide(retft,retfn+np.finfo(float).eps)
+def lab(f):
+    """Label embedded in input f"""
+    return np.abs(f[:,-1])
 ###### COMPUTATION
-# prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
-# prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
-# prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
-def compute_prefeat(f,printit=True):
+prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
+prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
+prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
+def compute_prefeat(f):
     """Prefeature computation
     -> f       : input force as an i by n by 4 matrix
     <- prefeat : corresponding force profiles
     """
-    if printit:
-        print "--------------------------------------- COMPUTING PREFEATURES ----------------------------------------"
+    print "--------------------------------------- COMPUTING PREFEATURES ----------------------------------------"
     prefeat = [np.array([prfn(f[i]) for prfn in prefeatfn[prefeatid]]).transpose() for i in range(len(f))]
     prefeat.append(prefeat[-1][:-1])
     prefeat = np.array(prefeat)[:-1]
-    if printit:
-        print prefeat.shape,":",[p.shape for p in prefeat]
+    print prefeat.shape,":",[p.shape for p in prefeat]
     return prefeat
 
 ############ AVG Computation time of ALL features in secs ############
-def avg_feat_comp_time(prefeat,printit=True):
+def avg_feat_comp_time(prefeat):
     """Average computation time for feature extraction
     -> prefeat : desired prefeature input
     """
-    if printit:
-        print "------------------------------------ AVG FEATURE COMPUTATION TIME ------------------------------------"
+    print "------------------------------------ AVG FEATURE COMPUTATION TIME ------------------------------------"
     t1 = time.time()
     m = int(ceil(0.2*len(prefeat)))
     # avg over m*100 times
     tmpfeat = [feat(prefeat[k][i:i+window,:2],*featparam) for k in range(m) for i in range(100)]
-    if printit:
-        print 'Avg feature computation time (millisec): ', (time.time() - t1) / (100 * m) * 1000
+    print 'Avg feature computation time (millisec): ', (time.time() - t1) / (100 * m) * 1000
 
 ############ FEATURE COMPUTATION ############
 def tmpfeatfilename(p,name,mode='all'):
@@ -448,7 +371,7 @@ def tmpfeatfilename(p,name,mode='all'):
     elif mode == 'red':
         return allfeatpath+name+str(p)+'_red'+str(samplesperdataset)+'.pkl.z'
 
-def feature_extraction(prefeat, member, featfile=featfile, name='feat_', printit=True):
+def feature_extraction(prefeat, member, featfile=featfile, name='feat_'):
     """Computation of all features in parallel or loading if already computed
     -> prefeat          : computed prefeatures
     -> member           : how much each dataset is represented,
@@ -457,14 +380,12 @@ def feature_extraction(prefeat, member, featfile=featfile, name='feat_', printit
     -> name             : desired per dataset feature temporary filenames
     <- features, labels : computed features and corresponding labels
     """
-    if printit:
-        print "---------------------------------------- FEATURE EXTRACTION ------------------------------------------"
+    print "---------------------------------------- FEATURE EXTRACTION ------------------------------------------"
     if os.path.isfile(featfile):
         start_time = time.time()
         features = np.load(featfile)['features']
         labels = np.load(featfile)['labels']
-        if printit:
-            print("Features FOUND PRECOMPUTED! Feature Loading DONE in: %s seconds " % (time.time() - start_time))
+        print("Features FOUND PRECOMPUTED! Feature Loading DONE in: %s seconds " % (time.time() - start_time))
         if delete_big_features:
             for j in glob.glob(allfeatpath+"*"):
                 if 'red' not in j:
@@ -485,26 +406,20 @@ def feature_extraction(prefeat, member, featfile=featfile, name='feat_', printit
                                                          for k in range(0,len(p)-window,shift)])])
                     with open(tmpfn,'wb') as fo:
                         joblib.dump(tmp,fo)
-                    if printit:
-                        print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfn, ' computing... ', tmp.shape
+                    print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfn                                                         , ' computing... ', tmp.shape
                 else:
                     with open(tmpfn,'rb') as fo:
                         tmp = joblib.load(fo)
-                    if printit:
-                        print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfn, ' already here!', tmp.shape
+                    print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfn                                                         , ' already here!', tmp.shape
                 # keep less from each feature vector but keep number of samples for each dataset almost equal
-                try:
-                    tmpskip = int(round(tmp.shape[1]/(member[ixp]*samplesperdataset)))
-                except:
-                    tmpskip = 1
+                tmpskip = int(round(tmp.shape[1]/(member[ixp]*samplesperdataset)))
                 if tmpskip == 0:
                     tmpskip = 1
                 # Save reduced size features
                 tmp = tmp[0,::tmpskip,:,:]
                 with open(tmpfnred,'wb') as fo:
                     joblib.dump(tmp,fo)
-                if printit:
-                    print 'sample:',ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, tmp.shape
+                print 'sample:',ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, tmp.shape
                 if delete_big_features:
                     call(['rm',tmpfn]) # delete big feature file, after reducing its size to desired
         for ixp in range(len(prefeat)):
@@ -514,26 +429,22 @@ def feature_extraction(prefeat, member, featfile=featfile, name='feat_', printit
             tmpfnred = tmpfeatfilename(ixp,name,'red')
             with open(tmpfnred,'rb') as fo:
                 tmp = joblib.load(fo)
-            if printit:
-                print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, 'already here!', tmp.shape
+            print 'sample:', ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, 'already here!'                                                                                   , tmp.shape
             features.append(tmp[:,:,:-1])
             labels.append(tmp[:,0,-1])
-        if printit:
-            print("Features NOT FOUND PRECOMPUTED! Feature Computation DONE in: %s sec " % (time.time() - start_time))
+        print("Features NOT FOUND PRECOMPUTED! Feature Computation DONE in: %s sec " % (time.time() - start_time))
         features.append(tmp[:-1,:,:-1])
         features = np.array(features)[:-1]
         labels.append(tmp[:-1,0,-1])
         labels = np.array(labels)[:-1]
-        if printit:
-            print 'features: ',features.shape,[ftmp.shape for ftmp in features]
-            print 'labels: ', labels.shape,[l.shape for l in labels]
+        print 'features: ',features.shape,[ftmp.shape for ftmp in features]
+        print 'labels: ', labels.shape,[l.shape for l in labels]
         np.savez(featfile,features=features,labels=labels)
-    if printit:
-        print 'features: ', features.shape, ', labels: ', labels.shape
+    print 'features: ', features.shape, ', labels: ', labels.shape
     return features, labels
 
 ############ LABEL TRIMMING ############
-def label_cleaning(prefeat,labels,member,history=500,printit=True):
+def label_cleaning(prefeat,labels,member,history=500):
     """Keep the purely stable and slip parts of label, thus omitting some samples around sign change points
     -> prefeat    : computed prefeatures
     -> labels     : main structure, where the trimming will be performed around change points
@@ -541,8 +452,7 @@ def label_cleaning(prefeat,labels,member,history=500,printit=True):
     -> history    : how much samples to throw away around change points
     <- new_labels : the trimmed labels
     """
-    if printit:
-        print "----------- KEEPING LABEL's PURE (STABLE, SLIP) PHASE PARTS (TRIMMING AROUND CHANGE POINTS)-----------"
+    print "----------- KEEPING LABEL's PURE (STABLE, SLIP) PHASE PARTS (TRIMMING AROUND CHANGE POINTS)-----------"
     lbl_approx = []
     for i in range(len(prefeat)):
         tmpd = np.abs(np.diff(prefeat[i][:,-1].astype(int),n=1,axis=0))
@@ -565,10 +475,7 @@ def label_cleaning(prefeat,labels,member,history=500,printit=True):
     for ixp in range(len(lbl_approx)):
         p = lbl_approx[ixp]
         tmp = np.array([p[k+window] for k in range(0,len(p)-window,shift)])
-        try:
-            tmpskip = int(round(tmp.shape[0]/(member[ixp]*samplesperdataset)))
-        except:
-            tmpskip = 1
+        tmpskip = int(round(tmp.shape[0]/(member[ixp]*samplesperdataset)))
         if tmpskip == 0:
             tmpskip = 1
         # Sampling appropriately
@@ -576,12 +483,11 @@ def label_cleaning(prefeat,labels,member,history=500,printit=True):
         if len(tmp) > len(labels[ixp]):
             tmp = tmp[:-1]
         new_labels[ixp] = tmp
-    if printit:
-        print 'new_labels: ', new_labels.shape
+    print 'new_labels: ', new_labels.shape
     return new_labels
 
 ############ GATHERING into complete arrays ready for FITTING ############
-def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplitfile,printit=True):
+def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplitfile):
     """
     -> features       : computed features as input data
     -> labels         : corresponding labels
@@ -590,16 +496,14 @@ def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplit
     -> XY[split]file  : desired output filenames
     <- X,Y,Yn,Xsp,Ysp : X corresponds to the data, Y the label, and *sp to the trimmed label's versions
     """
-    if printit:
-        print "----------------------------- COMPUTING X,Y for CLASSIFIERS' INPUT -----------------------------------"
+    print "----------------------------- COMPUTING X,Y for CLASSIFIERS' INPUT -----------------------------------"
     if os.path.isfile(XYfile) and os.path.isfile(XYsplitfile):
         X = np.load(XYfile)['X']
         Y = np.load(XYfile)['Y']
         Yn = np.load(XYfile)['Yn']
         Xsp = np.load(XYsplitfile)['X']
         Ysp = np.load(XYsplitfile)['Y']
-        if printit:
-            print("XY files FOUND PRECOMPUTED!")
+        print("XY files FOUND PRECOMPUTED!")
     else:
         # gathering features X,Xsp and labels Y,Ysp,Yn into one array each
         ind,X,Xsp,Y,Ysp,Yn = {},{},{},{},{},{}
@@ -611,13 +515,11 @@ def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplit
             X[k] = features[ind[k]]                                            # input feature matrix
             Y[k] = labels[ind[k]]                                              # output label vector
             Yn[k] = new_labels[ind[k]]                                         # output new_label vector
-            if printit:
-                print 'Before -> X[',k,']: ',X[k].shape,', Y[',k,']: ',Y[k].shape,', Yn[',k,']: ',Yn[k].shape
+            print 'Before -> X[',k,']: ',X[k].shape,', Y[',k,']: ',Y[k].shape,', Yn[',k,']: ',Yn[k].shape
             X[k] = np.concatenate(X[k],axis=0)
             Y[k] = np.concatenate(Y[k],axis=0)
             Yn[k] = np.concatenate(Yn[k],axis=0)
-            if printit:
-                print 'Gathered -> X[',k,']: ',X[k].shape,', Y[',k,']: ',Y[k].shape,', Yn[',k,']: ',Yn[k].shape
+            print 'Gathered -> X[',k,']: ',X[k].shape,', Y[',k,']: ',Y[k].shape,', Yn[',k,']: ',Yn[k].shape
             X[k] = np.array([X[k][:,:,i] for i in range(X[k].shape[2])])
             tmp_sampling = int(round(X[k].shape[1]*1./samplesperdataset))
             if tmp_sampling == 0:
@@ -625,14 +527,11 @@ def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplit
             X[k] = X[k][0,::tmp_sampling,:]
             Y[k] = Y[k][::tmp_sampling]
             Yn[k] = Yn[k][::tmp_sampling]
-            if printit:
-                print 'Gathered, sampled to max ', samplesperdataset, ' -> X[', k,']: ', X[k].shape, \
-                                         ', Y[', k, ']: ', Y[k].shape, ', Yn[', k,']: ', Yn[k].shape
+            print 'Gathered, sampled to max ', samplesperdataset, ' -> X[', k,']: ', X[k].shape, ', Y[', k                                              , ']: ', Y[k].shape, ', Yn[', k,']: ', Yn[k].shape
             keepind = Yn[k]>=0
             Xsp[k] = X[k][keepind,:]
             Ysp[k] = Yn[k][keepind]
-            if printit:
-                print 'Split -> Xsp[',k,']: ',Xsp[k].shape,', Ysp[',k,']: ',Ysp[k].shape
+            print 'Split -> Xsp[',k,']: ',Xsp[k].shape,', Ysp[',k,']: ',Ysp[k].shape
         X = np.array([i for _,i in X.items()])
         Xsp = np.array([i for _,i in Xsp.items()])
         Y = np.array([i for _,i in Y.items()])
@@ -640,13 +539,12 @@ def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplit
         Yn = np.array([i for _,i in Yn.items()])
         np.savez(XYfile,X=X,Y=Y,Yn=Yn)
         np.savez(XYsplitfile, X=Xsp, Y=Ysp)
-    if printit:
-        print 'X,Y [0,1,2]: ', X[0].shape, Y[0].shape, X[1].shape, Y[1].shape, X[2].shape, Y[2].shape
-        print 'Xsp,Ysp [0,1,2]: ', Xsp[0].shape, Ysp[0].shape, Xsp[1].shape, Ysp[1].shape, Xsp[2].shape, Ysp[2].shape
+    print 'X,Y [0,1,2]: ', X[0].shape, Y[0].shape, X[1].shape, Y[1].shape, X[2].shape, Y[2].shape
+    print 'Xsp,Ysp [0,1,2]: ', Xsp[0].shape, Ysp[0].shape, Xsp[1].shape, Ysp[1].shape, Xsp[2].shape, Ysp[2].shape
     return X,Y,Yn,Xsp,Ysp
 
 ############ Prepare the indeces for each feature ############
-def get_feat_id(feat_ind, sample_window=window, printit=False):
+def get_feat_id(feat_ind, printit=0, sample_window=window):
     """Find the corresponding indeces of the desired features inside feature vector,
     and link them with their names and level of abstraction
     -> feat_ind        : range of indeces
@@ -703,7 +601,7 @@ def get_feat_id(feat_ind, sample_window=window, printit=False):
 
     for ind, val in enumerate(feat_ind):
         full_path_id[ind] = [val, id_list[2][val], id_list[1][val], id_list[0][val]]
-        if (printit):
+        if (printit==1):
             if(full_path_id[ind][1]==0):
                 lvl3 = 'Phin'
             else:
@@ -721,7 +619,7 @@ def get_feat_id(feat_ind, sample_window=window, printit=False):
     return(full_path_id,norm_time_feats,norm_freq_feats)
 
 ############ Surface Splitting ############
-def surface_split(data_X, data_Y, n=6, k=2, printit=True):
+def surface_split(data_X, data_Y, n=6, k=2):
     """Split input data in k*n equal slices which represent n different surfaces sampled from k fingers.
     Indexes 0:n:(k-1)*n, 1:n:(k-1)*n+1, 2:n:(k-1)*n+2, ... correspond to the same surface (finger1 upto fingerk)
     Assuming k=2, namely 2 fingers case, unless stated differently
@@ -738,16 +636,14 @@ def surface_split(data_X, data_Y, n=6, k=2, printit=True):
     surfaces, surf_labels = {},{}
     for i in range(n):
         inds = range(i,k*n,n)
-        surfaces[inds[0]] = surfaces_pre[inds[0]]
-        surf_labels[inds[0]] = surf_labels_pre[inds[0]]
-        for tk in range(k-1):
-            surfaces[inds[0]] = np.concatenate((surfaces[inds[0]], surfaces_pre[inds[tk+1]]), axis = 0)
-            surf_labels[inds[0]] = np.concatenate((surf_labels[inds[0]], surf_labels_pre[inds[tk+1]]), axis = 0)
+        surfaces[inds[0]] = np.concatenate((surfaces_pre[inds[0]], surfaces_pre[inds[1]]), axis = 0)
+        surf_labels[inds[0]] = np.concatenate((surf_labels_pre[inds[0]], surf_labels_pre[inds[1]]), axis = 0)
     surfaces = np.array([i for _,i in surfaces.items()])
     surf_labels = np.array([i for _,i in surf_labels.items()])
     return surfaces, surf_labels
 
 ############ Featureset Splitting ############
+subfeats = ['AFFT','FREQ','TIME','BOTH']
 def feat_subsets(data,fs_ind,ofs=len(featnames)):
     """returns a splitting per featureset of input features
     -> data                                : input data X
@@ -783,27 +679,25 @@ def feat_subsets(data,fs_ind,ofs=len(featnames)):
     return X_amfft, X_freq_all, X_time, X_both
 
 ############ Prepare the dataset split for each surface ############
-def computeXY_persurf(Xsp, Ysp, surffile=surffile, n=6, k=2, saveload=True, printit=True):
+def computeXY_persurf(Xsp,Ysp,surffile=surffile):
     """returns a split per surface data and label of inputs
     -> Xsp, Ysp     : input data and labels, after having trimmed data around the label's change points
     -> surffile     : desired output's filename for saving
     <- surf, surfla : output data and label, split per surface
     """
-    if printit:
-        print "------------------------ COMPUTING X,Y per surface CLASSIFIERS' INPUT --------------------------------"
-    if os.path.isfile(surffile) and saveload:
+    print "------------------------ COMPUTING X,Y per surface CLASSIFIERS' INPUT --------------------------------"
+    if os.path.isfile(surffile):
         surf = np.load(surffile)['surf']       # input array containing computed features for each surface
         surfla = np.load(surffile)['surfla']   # corresponding label
     else:
         surf, surfla = [], []
         for i in range(len(prefeatid)-1): # for each featureset (corresponding to each prefeature, here only |f|)
-            surf1, surfla1 = surface_split(Xsp[2], Ysp[2], n, k, printit)
+            surf1, surfla1 = surface_split(Xsp[2], Ysp[2])
             tmpsurf = deepcopy(surf1)
             tmpsurfla = deepcopy(surfla1)
             tmpsurfsubfeat = []
             for j in range(tmpsurf.shape[0]+1): # for each surface
-                if (printit):
-                    print i,j,surf1.shape
+                print i,j,surf1.shape
                 if j == tmpsurf.shape[0]:
                     # ommit a sample for converting to array
                     tmpsurfsubfeat.append(feat_subsets(tmpsurf[j-1,:-1,:],i))
@@ -816,10 +710,8 @@ def computeXY_persurf(Xsp, Ysp, surffile=surffile, n=6, k=2, saveload=True, prin
         surf = np.array(surf).transpose()[:,:-1,:]
         # surfla dims: (samples, surfaces, prefeaturesets)
         surfla = np.array(surfla).transpose()
-        if saveload:
-            np.savez(surffile,surf=surf,surfla=surfla)
-    if (printit):
-        print surf.shape, surfla.shape
+        np.savez(surffile,surf=surf,surfla=surfla)
+    print surf.shape, surfla.shape
     return surf, surfla
 
 ############ PIPELINE OF TRANSFORMATIONS ############
@@ -837,8 +729,14 @@ def make_pipe_clf(scaler,feature_selection,decomp,clf):
                          ('classifier', clf) ])
     return pipeline
 
+def comb(n,r):
+    """Combinations of n objects by r, namely picking r among n possible.
+    comb(n,r) = n!/(r!(n-r)!)
+    """
+    return math.factorial(n)/(math.factorial(r)*math.factorial(n-r))
+
 ############ TRAINING with 1 surface each time, out of 6 surfaces in total ##############
-def filename1(i=0,j=0,k=0,l=0,retpath=0):
+def filename1(i,j,k,l,retpath=0):
     """function for the filename of the selected combination for training per 1 surface
     -> i : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -853,7 +751,7 @@ def filename1(i=0,j=0,k=0,l=0,retpath=0):
     else:
         return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr_'+str(k)+'_ts_'+str(l)+'.npz'
 
-def cross_fit1(i,j,k,kmax,l,data,labels,data2,labels2,pipe,printit=True):
+def cross_fit1(i,j,k,kmax,l,data,labels,data2,labels2,pipe):
     """function for fitting model per 1 surface
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -867,8 +765,7 @@ def cross_fit1(i,j,k,kmax,l,data,labels,data2,labels2,pipe,printit=True):
     """
     fileid = filename1(i,j,k,l)
     if not os.path.isfile(fileid):
-        if (printit):
-            print i,j,k,l
+        print i,j,k,l
         if k==l: # perform K-fold cross-validation
             folds = cv.split(data, labels)
             cm_all = np.zeros((2,2))
@@ -891,20 +788,18 @@ def cross_fit1(i,j,k,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             for m in range(kmax):
                 tmpcopyfileid = filepath+filename1(i,j,k,m)+'.npz'
                 if k!=m and os.path.isfile(tmpcopyfileid):
-                    if (printit):
-                        print 'Found precomputed model of '+str(k)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
+                    print 'Found precomputed model of '+str(k)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
                     model = np.load(tmpcopyfileid)['model'][0]
                     break
             if model==[]: # model not found precomputed
-                if (printit):
-                    print 'Fitting on '+str(k)+', testing on '+str(l)+'...'
+                print 'Fitting on '+str(k)+', testing on '+str(l)+'...'
                 model = pipe.fit(tr_data,tr_labels)
             y_pred = model.predict(ts_data)
             cm = confusion_matrix(y_pred=y_pred, y_true=ts_labels)
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             np.savez(fileid,cm=cm,model=np.array([model]))
 
-def init_steps1(i,j,jmax,surf,surfla,printit=True):
+def init_steps1(i,j,jmax,surf,surfla):
     """function for helping parallelization of computations per 1 surface
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -918,9 +813,9 @@ def init_steps1(i,j,jmax,surf,surfla,printit=True):
     pipe = make_pipe_clf(scaler, featsel, decomp, classifiers[2])
     for k in range(surf.shape[0]): # for every training surface
         for l in range(surf.shape[0]): # for every testing surface
-            cross_fit1(i,j,k,surf.shape[0],l,surf[k],surfla[:,k],surf[l],surfla[:,l],pipe,printit)
+            cross_fit1(i,j,k,surf.shape[0],l,surf[k],surfla[:,k],surf[l],surfla[:,l],pipe)
 
-def train_1_surface(surf,surfla,n=-1,printit=True):
+def train_1_surface(surf,surfla,n=-1):
     """Parallel training -on surface level- of all combinations on 1 surface
     -> n              : number of cores to run in parallel,
                         input of joblib's Parallel (n=-1 means all available cores)
@@ -930,16 +825,14 @@ def train_1_surface(surf,surfla,n=-1,printit=True):
          = 4*6*6*1 = 144 different runs-files.
     Note that comb(n,r) = n!/(r!(n-r)!)
     """
-    if (printit):
-        print "-------------------------- TRAINING all combinations per 1 surface -----------------------------------"
+    print "-------------------------- TRAINING all combinations per 1 surface -----------------------------------"
     for i in range(len(prefeatid)-1):
-        _ = [Parallel(n_jobs=n)([delayed(init_steps1) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i],printit)
+        _ = [Parallel(n_jobs=n)([delayed(init_steps1) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i])
                                   for j in range(surf.shape[0])])]
 
-def bargraph_perf_gen1(maxsurf,printit=True):
+def bargraph_perf_gen1(maxsurf):
     """Perf file for bargraph generation using bargraph tool, for 1 surface"""
-    if (printit):
-        print "---------------------------- Generating perf files for 1 surface -------------------------------------"
+    print "---------------------------- Generating perf files for 1 surface -------------------------------------"
     prefeats = prefeatnames[prefeatid][:-1]
     # prefeatures, subfeatures, trained, tested, (TP,TN,FN,FP)
     acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,4))
@@ -947,10 +840,20 @@ def bargraph_perf_gen1(maxsurf,printit=True):
     self_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,1,4))
     # features, subfeatures, trained, (tested avg, tested std), (TP,TN,FN,FP)
     cross_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,2,4))
-    initial_str = "# clustered and stacked graph bogus data\n=stackcluster;TP;TN;FN;FP\n"+\
-                  "colors=med_blue,dark_green,yellow,red\n=nogridy\n=noupperright\nfontsz=5\nlegendx=right\n"+\
-                  "legendy=center\ndatascale=50\nyformat=%g%%\nxlabel=TrainedON-TestedON\nylabel=Metrics\n=table"
-    respath = filename1(retpath=1)
+    initial_str = """# clustered and stacked graph data
+=stackcluster;TP;TN;FN;FP
+colors=med_blue,dark_green,yellow,red
+=nogridy
+=noupperright
+fontsz=5
+legendx=right
+legendy=center
+datascale=50
+yformat=%g%%
+xlabel=TrainedON-TestedON
+ylabel=Metrics
+=table"""
+    respath = filename1(0,0,0,0,1)
     for i in range(len(prefeats)):
         outname = respath+prefeats[i]
         outfile = outname+'.perf'
@@ -1014,7 +917,7 @@ def bargraph_perf_gen1(maxsurf,printit=True):
         out2.close()
 
 ############ TRAINING with 2 surfaces each time, out of 6 surfaces in total ##############
-def filename2(i=0,j=0,k1=0,k2=0,l=0,retpath=0):
+def filename2(i,j,k1,k2,l,retpath=0):
     """function for the filename of the selected combination for training per 2 surfaces
     -> i  : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j  : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1029,7 +932,7 @@ def filename2(i=0,j=0,k1=0,k2=0,l=0,retpath=0):
     else:
         return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_ts_'+str(l)+'.npz'
 
-def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe,printit=True):
+def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe):
     """function for fitting model per 2 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1043,11 +946,9 @@ def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe,printit=True):
     """
     fileid = filename2(i,j,k1,k2,l)
     if not os.path.isfile(fileid):
-        if (printit):
-            print i,j,k1,k2,l
+        print i,j,k1,k2,l
         if k1==l or k2==l: # perform K-fold
-            if (printit):
-                print 'Fitting on '+str(k1)+"-"+str(k2)+', cross-validating on '+str(l)+'...'
+            print 'Fitting on '+str(k1)+"-"+str(k2)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
                 tmpcopyfileid = filepath+filename2(i,j,k1,k2,k2)+'.npz'
             else:   # same as above
@@ -1076,20 +977,18 @@ def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             for m in range(kmax):
                 tmpcopyfileid = filepath+filename2(i,j,k1,k2,m)+'.npz'
                 if k1!=m and k2!=m and os.path.isfile(tmpcopyfileid):
-                    if (printit):
-                        print 'Found precomputed model of '+str(k1)+str(k2)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
+                    print 'Found precomputed model of '+str(k1)+str(k2)+', tested on '+str(m)                                                                        +'. Testing on '+str(l)+'...'
                     model = np.load(tmpcopyfileid)['model'][0]
                     break
             if model==[]: # model not found precomputed
-                if (printit):
-                    print 'Fitting on '+str(k1)+"-"+str(k2)+', testing on '+str(l)+'...'
+                print 'Fitting on '+str(k1)+"-"+str(k2)+', testing on '+str(l)+'...'
                 model = pipe.fit(tr_data,tr_labels)
             y_pred = model.predict(ts_data)
             cm = confusion_matrix(y_pred=y_pred, y_true=ts_labels)
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             np.savez(fileid,cm=cm,model=np.array([model]))
 
-def init_steps2(i,j,jmax,surf,surfla,printit=True):
+def init_steps2(i,j,jmax,surf,surfla):
     """function for helping parallelization of computations per 2 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1108,9 +1007,9 @@ def init_steps2(i,j,jmax,surf,surfla,printit=True):
                     tr_surf = np.concatenate((surf[k1],surf[k2]),axis=0)
                     tr_surfla = np.concatenate((surfla[:,k1],surfla[:,k2]),axis=0)
                     ts_surf, ts_surfla = surf[l], surfla[:,l]
-                    cross_fit2(i,j,k1,k2,surf.shape[0],l,tr_surf,tr_surfla,ts_surf,ts_surfla,pipe,printit)
+                    cross_fit2(i,j,k1,k2,surf.shape[0],l,tr_surf,tr_surfla,ts_surf,ts_surfla,pipe)
 
-def train_2_surface(surf,surfla,n=-1,printit=True):
+def train_2_surface(surf,surfla,n=-1):
     """Parallel training -on surface level- of all combinations on 2 surfaces
     -> n              : number of cores to run in parallel,
                         input of joblib's Parallel (n=-1 means all available cores)
@@ -1120,16 +1019,14 @@ def train_2_surface(surf,surfla,n=-1,printit=True):
          = 4*15*6*1 = 360 different runs-files.
     Note that comb(n,r) = n!/(r!(n-r)!)
     """
-    if (printit):
-        print "-------------------------- TRAINING all combinations per 2 surfaces ----------------------------------"
+    print "-------------------------- TRAINING all combinations per 2 surfaces ----------------------------------"
     for i in range(len(prefeatid)-1):
-        _ = [Parallel(n_jobs=n)([delayed(init_steps2) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i],printit)
+        _ = [Parallel(n_jobs=n)([delayed(init_steps2) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i])
                                  for j in range(surf.shape[0])])]
 
-def bargraph_perf_gen2(maxsurf,printit=True):
+def bargraph_perf_gen2(maxsurf):
     """Perf file for bargraph generation using bargraph tool, for 2 surfaces"""
-    if (printit):
-        print "---------------------------- Generating perf files for 2 surfaces ------------------------------------"
+    print "---------------------------- Generating perf files for 2 surfaces ------------------------------------"
     prefeats = prefeatnames[prefeatid][:-1]
     # prefeatures, subfeatures, trained, tested, (TP,TN,FN,FP)
     acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,4))
@@ -1143,10 +1040,20 @@ def bargraph_perf_gen2(maxsurf,printit=True):
     cross_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,2,4))
      # features, subfeatures, (TP,TN,FN,FP) -> avg over all cross tested surfaces
     avgc = np.zeros((len(prefeats),len(subfeats),4))
-    initial_str = "# clustered and stacked graph bogus data\n=stackcluster;TP;TN;FN;FP\n"+\
-                  "colors=med_blue,dark_green,yellow,red\n=nogridy\n=noupperright\nfontsz=5\nlegendx=right\n"+\
-                  "legendy=center\ndatascale=50\nyformat=%g%%\nxlabel=TrainedON-TestedON\nylabel=Metrics\n=table"
-    respath = filename2(retpath=1)
+    initial_str = """# clustered and stacked graph bogus data
+=stackcluster;TP;TN;FN;FP
+colors=med_blue,dark_green,yellow,red
+=nogridy
+=noupperright
+fontsz=5
+legendx=right
+legendy=center
+datascale=50
+yformat=%g%%
+xlabel=TrainedON-TestedON
+ylabel=Metrics
+=table"""
+    respath = filename2(0,0,0,0,0,1)
     for i in range(len(prefeats)):
         outname = respath+prefeats[i]
         outfile = outname+'.perf'
@@ -1215,7 +1122,7 @@ def bargraph_perf_gen2(maxsurf,printit=True):
         out2.close()
 
 ############ TRAINING with 3 surfaces each time, out of 6 surfaces in total ##############
-def filename3(i=0,j=0,k1=0,k2=0,k3=0,l=0,retpath=0):
+def filename3(i,j,k1,k2,k3,l,retpath=0):
     """function for the filename of the selected combination for training per 3 surfaces
     -> i  : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j  : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1228,9 +1135,9 @@ def filename3(i=0,j=0,k1=0,k2=0,k3=0,l=0,retpath=0):
     if retpath:
         return filepath
     else:
-        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'+str(k3)+'_ts_'+str(l)+'.npz'
+        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'+str(k3)                                                                  +'_ts_'+str(l)+'.npz'
 
-def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe,printit=True):
+def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe):
     """function for fitting model per 3 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1244,11 +1151,9 @@ def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe,printit=True):
     """
     fileid = filename3(i,j,k1,k2,k3,l)
     if not os.path.isfile(fileid):
-        if (printit):
-            print i,j,k1,k2,k3,l
+        print i,j,k1,k2,k3,l
         if k1==l or k2==l or k3==l: # perform K-fold
-            if (printit):
-                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+', cross-validating on '+str(l)+'...'
+            print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
                 tmpcopyfileid1 = filepath+filename3(i,j,k1,k2,k3,k2)+'.npz'
                 tmpcopyfileid2 = filepath+filename3(i,j,k1,k2,k3,k3)+'.npz'
@@ -1286,20 +1191,18 @@ def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             for m in range(kmax):
                 tmpcopyfileid = filepath+filename3(i,j,k1,k2,k3,m)+'.npz'
                 if k1!=m and k2!=m and k3!=m and os.path.isfile(tmpcopyfileid):
-                    if (printit):
-                        print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
+                    print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+', tested on '+str(m)                                                                                +'. Testing on '+str(l)+'...'
                     model = np.load(tmpcopyfileid)['model'][0]
                     break
             if model==[]: # model not found precomputed
-                if (printit):
-                    print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+', testing on '+str(l)+'...'
+                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+', testing on '+str(l)+'...'
                 model = pipe.fit(tr_data,tr_labels)
             y_pred = model.predict(ts_data)
             cm = confusion_matrix(y_pred=y_pred, y_true=ts_labels)
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             np.savez(fileid,cm=cm,model=np.array([model]))
 
-def init_steps3(i,j,jmax,surf,surfla,printit=True):
+def init_steps3(i,j,jmax,surf,surfla):
     """function for helping parallelization of computations per 3 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1320,9 +1223,9 @@ def init_steps3(i,j,jmax,surf,surfla,printit=True):
                             tr_surf = np.concatenate((surf[k1],surf[k2],surf[k3]),axis=0)
                             tr_surfla = np.concatenate((surfla[:,k1],surfla[:,k2],surfla[:,k3]),axis=0)
                             ts_surf, ts_surfla = surf[l], surfla[:,l]
-                            cross_fit3(i,j,k1,k2,k3,surf.shape[0],l,tr_surf,tr_surfla,ts_surf,ts_surfla,pipe,printit)
+                            cross_fit3(i,j,k1,k2,k3,surf.shape[0],l,tr_surf,tr_surfla,ts_surf,ts_surfla,pipe)
 
-def train_3_surface(surf,surfla,n=-1,printit=True):
+def train_3_surface(surf,surfla,n=-1):
     """Parallel training -on surface level- of all combinations on 3 surfaces
     -> n              : number of cores to run in parallel,
                         input of joblib's Parallel (n=-1 means all available cores)
@@ -1332,16 +1235,14 @@ def train_3_surface(surf,surfla,n=-1,printit=True):
          = 4*20*6*1 = 480 different runs-files.
     Note that comb(n,r) = n!/(r!(n-r)!)
     """
-    if (printit):
-        print "-------------------------- TRAINING all combinations per 3 surfaces ----------------------------------"
+    print "-------------------------- TRAINING all combinations per 3 surfaces ----------------------------------"
     for i in range(len(prefeatid)-1):
-        _ = [Parallel(n_jobs=n)([delayed(init_steps3) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i],printit)
+        _ = [Parallel(n_jobs=n)([delayed(init_steps3) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i])
                                  for j in range(surf.shape[0])])]
 
-def bargraph_perf_gen3(maxsurf,printit=True):
+def bargraph_perf_gen3(maxsurf):
     """Perf file for bargraph generation using bargraph tool, for 3 surfaces"""
-    if (printit):
-        print "---------------------------- Generating perf files for 3 surfaces ------------------------------------"
+    print "---------------------------- Generating perf files for 3 surfaces ------------------------------------"
     prefeats = prefeatnames[prefeatid][:-1]
     # prefeatures, subfeatures, trained, tested, (TP,TN,FN,FP)
     acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,maxsurf,4))
@@ -1355,10 +1256,20 @@ def bargraph_perf_gen3(maxsurf,printit=True):
     cross_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,2,4))
      # features, subfeatures, (TP,TN,FN,FP) -> avg over all cross tested surfaces
     avgc = np.zeros((len(prefeats),len(subfeats),4))
-    initial_str = "# clustered and stacked graph bogus data\n=stackcluster;TP;TN;FN;FP\n"+\
-                  "colors=med_blue,dark_green,yellow,red\n=nogridy\n=noupperright\nfontsz=5\nlegendx=right\n"+\
-                  "legendy=center\ndatascale=50\nyformat=%g%%\nxlabel=TrainedON-TestedON\nylabel=Metrics\n=table"
-    respath = filename3(retpath=1)
+    initial_str = """# clustered and stacked graph bogus data
+=stackcluster;TP;TN;FN;FP
+colors=med_blue,dark_green,yellow,red
+=nogridy
+=noupperright
+fontsz=5
+legendx=right
+legendy=center
+datascale=50
+yformat=%g%%
+xlabel=TrainedON-TestedON
+ylabel=Metrics
+=table"""
+    respath = filename3(0,0,0,0,0,0,1)
     for i in range(len(prefeats)):
         outname = respath+prefeats[i]
         outfile = outname+'.perf'
@@ -1433,7 +1344,7 @@ def bargraph_perf_gen3(maxsurf,printit=True):
         out2.close()
 
 ############ TRAINING with 4 surfaces each time, out of 6 surfaces in total ##############
-def filename4(i=0,j=0,k1=0,k2=0,k3=0,k4=0,l=0,retpath=0):
+def filename4(i,j,k1,k2,k3,k4,l,retpath=0):
     """function for the filename of the selected combination for training per 4 surfaces
     -> i  : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j  : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1446,9 +1357,9 @@ def filename4(i=0,j=0,k1=0,k2=0,k3=0,k4=0,l=0,retpath=0):
     if retpath:
         return filepath
     else:
-        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'+str(k3)+'_tr4_'+str(k4)+'_ts_'+str(l)+'.npz'
+        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'                                  +str(k3)+'_tr4_'+str(k4)+'_ts_'+str(l)+'.npz'
 
-def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=True):
+def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe):
     """function for fitting model per 4 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1462,11 +1373,9 @@ def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=Tru
     """
     fileid = filename4(i,j,k1,k2,k3,k4,l)
     if not os.path.isfile(fileid):
-        if (printit):
-            print i,j,k1,k2,k3,k4,l
+        print i,j,k1,k2,k3,k4,l
         if k1==l or k2==l or k3==l or k4==l: # perform K-fold
-            if (printit):
-                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+', cross-validating on '+str(l)+'...'
+            print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
                 tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k2)+'.npz'
                 tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k3)+'.npz'
@@ -1483,7 +1392,7 @@ def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=Tru
                 tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k1)+'.npz'
                 tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k2)+'.npz'
                 tmpcopyfileid3 = filepath+filename4(i,j,k1,k2,k3,k4,k3)+'.npz'
-            if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2) and not os.path.isfile(tmpcopyfileid3):
+            if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2)                                                   and not os.path.isfile(tmpcopyfileid3):
                 folds = cv.split(data, labels)
                 cm_all = np.zeros((2,2))
                 for fold, (train_ind, test_ind) in enumerate(folds):
@@ -1514,20 +1423,18 @@ def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=Tru
             for m in range(kmax):
                 tmpcopyfileid = filepath+filename4(i,j,k1,k2,k3,k4,m)+'.npz'
                 if k1!=m and k2!=m and k3!=m and k4!=m and os.path.isfile(tmpcopyfileid):
-                    if (printit):
-                        print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
+                    print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)                                                       +', tested on '+str(m)+'. Testing on '+str(l)+'...'
                     model = np.load(tmpcopyfileid)['model'][0]
                     break
             if model==[]: # model not found precomputed
-                if (printit):
-                    print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+', testing on '+str(l)+'...'
+                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+', testing on '+str(l)+'...'
                 model = pipe.fit(tr_data,tr_labels)
             y_pred = model.predict(ts_data)
             cm = confusion_matrix(y_pred=y_pred, y_true=ts_labels)
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             np.savez(fileid,cm=cm,model=np.array([model]))
 
-def init_steps4(i,j,jmax,surf,surfla,printit=True):
+def init_steps4(i,j,jmax,surf,surfla):
     """function for helping parallelization of computations per 4 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1551,9 +1458,9 @@ def init_steps4(i,j,jmax,surf,surfla,printit=True):
                                     tr_surfla = np.concatenate((surfla[:,k1],surfla[:,k2],surfla[:,k3]),axis=0)
                                     ts_surf, ts_surfla = surf[l], surfla[:,l]
                                     cross_fit4(i,j,k1,k2,k3,k4,surf.shape[0],l,
-                                               tr_surf,tr_surfla,ts_surf,ts_surfla,pipe,printit)
+                                               tr_surf,tr_surfla,ts_surf,ts_surfla,pipe)
 
-def train_4_surface(surf,surfla,n=-1,printit=True):
+def train_4_surface(surf,surfla,n=-1):
     """Parallel training -on surface level- of all combinations on 4 surfaces
     -> n              : number of cores to run in parallel,
                         input of joblib's Parallel (n=-1 means all available cores)
@@ -1563,16 +1470,14 @@ def train_4_surface(surf,surfla,n=-1,printit=True):
          = 4*15*6*1 = 360 different runs-files.
     Note that comb(n,r) = n!/(r!(n-r)!)
     """
-    if (printit):
-        print "-------------------------- TRAINING all combinations per 4 surfaces ----------------------------------"
+    print "-------------------------- TRAINING all combinations per 4 surfaces ----------------------------------"
     for i in range(len(prefeatid)-1):
-        _ = [Parallel(n_jobs=n)([delayed(init_steps4) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i],printit)
+        _ = [Parallel(n_jobs=n)([delayed(init_steps4) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i])
                                  for j in range(surf.shape[0])])]
 
-def bargraph_perf_gen4(maxsurf,printit=True):
+def bargraph_perf_gen4(maxsurf):
     """Perf file for bargraph generation using bargraph tool, for 4 surfaces"""
-    if (printit):
-        print "---------------------------- Generating perf files for 4 surfaces ------------------------------------"
+    print "---------------------------- Generating perf files for 4 surfaces ------------------------------------"
     prefeats = prefeatnames[prefeatid][:-1]
     # prefeatures, subfeatures, trained, tested, (TP,TN,FN,FP)
     acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,maxsurf,maxsurf,4))
@@ -1586,10 +1491,20 @@ def bargraph_perf_gen4(maxsurf,printit=True):
     cross_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,maxsurf,2,4))
      # features, subfeatures, (TP,TN,FN,FP) -> avg over all cross tested surfaces
     avgc = np.zeros((len(prefeats),len(subfeats),4))
-    initial_str = "# clustered and stacked graph bogus data\n=stackcluster;TP;TN;FN;FP\n"+\
-                  "colors=med_blue,dark_green,yellow,red\n=nogridy\n=noupperright\nfontsz=5\nlegendx=right\n"+\
-                  "legendy=center\ndatascale=50\nyformat=%g%%\nxlabel=TrainedON-TestedON\nylabel=Metrics\n=table"
-    respath = filename4(retpath=1)
+    initial_str = """# clustered and stacked graph bogus data
+=stackcluster;TP;TN;FN;FP
+colors=med_blue,dark_green,yellow,red
+=nogridy
+=noupperright
+fontsz=5
+legendx=right
+legendy=center
+datascale=50
+yformat=%g%%
+xlabel=TrainedON-TestedON
+ylabel=Metrics
+=table"""
+    respath = filename4(0,0,0,0,0,0,0,1)
     for i in range(len(prefeats)):
         outname = respath+prefeats[i]
         outfile = outname+'.perf'
@@ -1625,11 +1540,11 @@ def bargraph_perf_gen4(maxsurf,printit=True):
                                                                                     acc[i,j,k1,k2,k3,k4,l,3]))
                                             if l == k1 or l == k2 or l == k3 or l == k4: # selc accuracy
                                                 if j == 0 and l == k4:
-                                                    out1.write("multimulti="+str(k1)+str(k2)+str(k3)+str(k4)+"-"+str(l)+"\n")
+                                                    out1.write("multimulti="+str(k1)+str(k2)+str(k3)                                                                            +str(k4)+"-"+str(l)+"\n")
                                                 self_acc[i,j,k1,k2,k3,k4,0,:] = acc[i,j,k1,k2,k3,k4,l]
                                                 avgs[i,j,:] += self_acc[i,j,k1,k2,k3,k4,0,:]
                                                 if l == k4:
-                                                    out1.write("%s %.2f %.2f %.2f %.2f\n" % (subfeats[j],
+                                                    out1.write("%s %.2f %.2f %.2f %.2f\n"                                                                % (subfeats[j],
                                                                   self_acc[i,j,k1,k2,k3,k4,0,0],
                                                                   self_acc[i,j,k1,k2,k3,k4,0,1],
                                                                   self_acc[i,j,k1,k2,k3,k4,0,2],
@@ -1642,10 +1557,10 @@ def bargraph_perf_gen4(maxsurf,printit=True):
                                                 t.remove(k4)
                                                 if (l == t[-1]):
                                                     if j == 0:
-                                                        out2.write("multimulti="+str(k1)+str(k2)+str(k3)+str(k4)+"\n")
-                                                    cross_acc[i,j,k1,k2,k3,k4,0,:] = np.mean(acc[i,j,k1,k2,k3,k4,t,:], axis=0)
+                                                        out2.write("multimulti="+str(k1)+str(k2)                                                                   +str(k3)+str(k4)+"\n")
+                                                    cross_acc[i,j,k1,k2,k3,k4,0,:] =                                                         np.mean(acc[i,j,k1,k2,k3,k4,t,:], axis=0)
                                                     avgc[i,j,:] += cross_acc[i,j,k1,k2,k3,k4,0,:]
-                                                    out2.write("%s %.2f %.2f %.2f %.2f\n" % (subfeats[j],
+                                                    out2.write("%s %.2f %.2f %.2f %.2f\n"                                                                % (subfeats[j],
                                                                   cross_acc[i,j,k1,k2,k3,k4,0,0],
                                                                   cross_acc[i,j,k1,k2,k3,k4,0,1],
                                                                   cross_acc[i,j,k1,k2,k3,k4,0,2],
@@ -1665,7 +1580,7 @@ def bargraph_perf_gen4(maxsurf,printit=True):
         out2.close()
 
 ############ TRAINING with 5 surfaces each time, out of 6 surfaces in total ##############
-def filename5(i=0,j=0,k1=0,k2=0,k3=0,k4=0,k5=0,l=0,retpath=0):
+def filename5(i,j,k1,k2,k3,k4,k5,l,retpath=0):
     """function for the filename of the selected combination for training per 5 surfaces
     -> i  : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j  : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1678,9 +1593,9 @@ def filename5(i=0,j=0,k1=0,k2=0,k3=0,k4=0,k5=0,l=0,retpath=0):
     if retpath:
         return filepath
     else:
-        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'+str(k3)+'_tr4_'+str(k4)+'_tr5_'+str(k5)+'_ts_'+str(l)+'.npz'
+        return filepath+'fs_'+str(i)+'_subfs_'+str(j)+'_tr1_'+str(k1)+'_tr2_'+str(k2)+'_tr3_'                                  +str(k3)+'_tr4_'+str(k4)+'_tr5_'+str(k5)+'_ts_'+str(l)+'.npz'
 
-def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=True):
+def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe):
     """function for fitting model per 5 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1694,11 +1609,9 @@ def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=
     """
     fileid = filename5(i,j,k1,k2,k3,k4,k5,l)
     if not os.path.isfile(fileid):
-        if (printit):
-            print i,j,k1,k2,k3,k4,k5,l
+        print i,j,k1,k2,k3,k4,k5,l
         if k1==l or k2==l or k3==l or k4==l or k5==l: # perform K-fold
-            if (printit):
-                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+"-"+str(k5)+', cross-validating on '+str(l)+'...'
+            print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+"-"                                            +str(k5)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
                 tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
                 tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
@@ -1724,8 +1637,7 @@ def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=
                 tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
                 tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
                 tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k4)+'.npz'
-            if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2)\
-               and not os.path.isfile(tmpcopyfileid3) and not os.path.isfile(tmpcopyfileid4):
+            if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2)                and not os.path.isfile(tmpcopyfileid3) and not os.path.isfile(tmpcopyfileid4):
                 folds = cv.split(data, labels)
                 cm_all = np.zeros((2,2))
                 for fold, (train_ind, test_ind) in enumerate(folds):
@@ -1759,20 +1671,18 @@ def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=
             for m in range(kmax):
                 tmpcopyfileid = filepath+filename5(i,j,k1,k2,k3,k4,k5,m)+'.npz'
                 if k1!=m and k2!=m and k3!=m and k4!=m and k5!=m and os.path.isfile(tmpcopyfileid):
-                    if (printit):
-                        print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)+str(k5)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
+                    print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)+str(k5)                                                        +', tested on '+str(m)+'. Testing on '+str(l)+'...'
                     model = np.load(tmpcopyfileid)['model'][0]
                     break
             if model==[]: # model not found precomputed
-                if (printit):
-                    print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+"-"+str(k5)+', testing on '+str(l)+'...'
+                print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+"-"                                                +str(k5)+', testing on '+str(l)+'...'
                 model = pipe.fit(tr_data,tr_labels)
             y_pred = model.predict(ts_data)
             cm = confusion_matrix(y_pred=y_pred, y_true=ts_labels)
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             np.savez(fileid,cm=cm,model=np.array([model]))
 
-def init_steps5(i,j,jmax,surf,surfla,printit=True):
+def init_steps5(i,j,jmax,surf,surfla):
     """function for helping parallelization of computations per 5 surfaces
     -> i              : prefeature id, among all computed prefeatures (0: |f|, ... see prefeatid)
     -> j              : subfeatureset among all features (0: AFFT, 1: FREQ, 2: TIME, 3: ALL)
@@ -1799,9 +1709,9 @@ def init_steps5(i,j,jmax,surf,surfla,printit=True):
                                                                         surfla[:,k3]),axis=0)
                                             ts_surf, ts_surfla = surf[l], surfla[:,l]
                                             cross_fit5(i,j,k1,k2,k3,k4,k5,surf.shape[0],l,
-                                                       tr_surf,tr_surfla,ts_surf,ts_surfla,pipe,printit)
+                                                       tr_surf,tr_surfla,ts_surf,ts_surfla,pipe)
 
-def train_5_surface(surf,surfla,n=-1,printit=True):
+def train_5_surface(surf,surfla,n=-1):
     """Parallel training -on surface level- of all combinations on 5 surfaces
     -> n              : number of cores to run in parallel,
                         input of joblib's Parallel (n=-1 means all available cores)
@@ -1811,16 +1721,14 @@ def train_5_surface(surf,surfla,n=-1,printit=True):
          = 4*6*6*1 = 144 different runs-files.
     Note that comb(n,r) = n!/(r!(n-r)!)
     """
-    if (printit):
-        print "-------------------------- TRAINING all combinations per 5 surfaces ----------------------------------"
+    print "-------------------------- TRAINING all combinations per 5 surfaces ----------------------------------"
     for i in range(len(prefeatid)-1):
-        _ = [Parallel(n_jobs=n)([delayed(init_steps5) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i],printit)
+        _ = [Parallel(n_jobs=n)([delayed(init_steps5) (i,j,surf.shape[0]-1,surf[j,:,i],surfla[:,:,i])
                                  for j in range(surf.shape[0])])]
 
-def bargraph_perf_gen5(maxsurf,printit=True):
+def bargraph_perf_gen5(maxsurf):
     """Perf file for bargraph generation using bargraph tool, for 5 surfaces"""
-    if (printit):
-        print "---------------------------- Generating perf files for 5 surfaces ------------------------------------"
+    print "---------------------------- Generating perf files for 5 surfaces ------------------------------------"
     prefeats = prefeatnames[prefeatid][:-1]
     # prefeatures, subfeatures, trained, tested, (TP,TN,FN,FP)
     acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,maxsurf,maxsurf,maxsurf,4))
@@ -1834,10 +1742,20 @@ def bargraph_perf_gen5(maxsurf,printit=True):
     cross_acc = np.zeros((len(prefeats),len(subfeats),maxsurf,maxsurf,maxsurf,maxsurf,maxsurf,2,4))
      # features, subfeatures, (TP,TN,FN,FP) -> avg over all cross tested surfaces
     avgc = np.zeros((len(prefeats),len(subfeats),4))
-    initial_str = "# clustered and stacked graph bogus data\n=stackcluster;TP;TN;FN;FP\n"+\
-                  "colors=med_blue,dark_green,yellow,red\n=nogridy\n=noupperright\nfontsz=5\nlegendx=right\n"+\
-                  "legendy=center\ndatascale=50\nyformat=%g%%\nxlabel=TrainedON-TestedON\nylabel=Metrics\n=table"
-    respath = filename5(retpath=1)
+    initial_str = """# clustered and stacked graph bogus data
+=stackcluster;TP;TN;FN;FP
+colors=med_blue,dark_green,yellow,red
+=nogridy
+=noupperright
+fontsz=5
+legendx=right
+legendy=center
+datascale=50
+yformat=%g%%
+xlabel=TrainedON-TestedON
+ylabel=Metrics
+=table"""
+    respath = filename5(0,0,0,0,0,0,0,0,1)
     for i in range(len(prefeats)):
         outname = respath+prefeats[i]
         outfile = outname+'.perf'
@@ -1859,8 +1777,7 @@ def bargraph_perf_gen5(maxsurf,printit=True):
                                     for k5 in range(maxsurf):
                                         if k5 > k4:
                                             for l in range(maxsurf):
-                                                out.write("multimulti="+str(k1)+str(k2)+str(k3)+str(k4)
-                                                                       +str(k5)+"-"+str(l)+"\n")
+                                                out.write("multimulti="+str(k1)+str(k2)+str(k3)+str(k4)                                                          +str(k5)+"-"+str(l)+"\n")
                                                 for j in range(len(subfeats)):
                                                     fileid = filename5(i,j,k1,k2,k3,k4,k5,l)
                                                     tmp = np.load(fileid)['cm']
@@ -1869,7 +1786,7 @@ def bargraph_perf_gen5(maxsurf,printit=True):
                                                     acc[i,j,k1,k2,k3,k4,k5,l,2] = 1-round(tmp[1,1],2) # FN
                                                     acc[i,j,k1,k2,k3,k4,k5,l,3] = 1-round(tmp[0,0],2) # FP
                                                     avg[i,j,:] += acc[i,j,k1,k2,k3,k4,k5,l,:]
-                                                    out.write("%s %.2f %.2f %.2f %.2f\n" % (subfeats[j],
+                                                    out.write("%s %.2f %.2f %.2f %.2f\n"                                                               % (subfeats[j],
                                                                  acc[i,j,k1,k2,k3,k4,k5,l,0],
                                                                  acc[i,j,k1,k2,k3,k4,k5,l,1],
                                                                  acc[i,j,k1,k2,k3,k4,k5,l,2],
@@ -1879,10 +1796,10 @@ def bargraph_perf_gen5(maxsurf,printit=True):
                                                         if j == 0 and l == k5:
                                                             out1.write("multimulti="+str(k1)+str(k2)
                                                                        +str(k3)+str(k4)+str(k5)+"-"+str(l)+"\n")
-                                                        self_acc[i,j,k1,k2,k3,k4,k5,0,:] = acc[i,j,k1,k2,k3,k4,k5,l]
+                                                        self_acc[i,j,k1,k2,k3,k4,k5,0,:] =                                                             acc[i,j,k1,k2,k3,k4,k5,l]
                                                         avgs[i,j,:] += self_acc[i,j,k1,k2,k3,k4,k5,0,:]
                                                         if l == k5:
-                                                            out1.write("%s %.2f %.2f %.2f %.2f\n" % (subfeats[j],
+                                                            out1.write("%s %.2f %.2f %.2f %.2f\n"                                                                        % (subfeats[j],
                                                                           self_acc[i,j,k1,k2,k3,k4,k5,0,0],
                                                                           self_acc[i,j,k1,k2,k3,k4,k5,0,1],
                                                                           self_acc[i,j,k1,k2,k3,k4,k5,0,2],
@@ -1896,10 +1813,10 @@ def bargraph_perf_gen5(maxsurf,printit=True):
                                                         t.remove(k5)
                                                         if (l == t[-1]):
                                                             if j == 0:
-                                                                out2.write("multimulti="+str(k1)+str(k2)+str(k3)+str(k4)+str(k5)+"\n")
-                                                            cross_acc[i,j,k1,k2,k3,k4,k5,0,:] = np.mean(acc[i,j,k1,k2,k3,k4,k5,t,:], axis=0)
+                                                                out2.write("multimulti="+str(k1)+str(k2)                                                                           +str(k3)+str(k4)+str(k5)+"\n")
+                                                            cross_acc[i,j,k1,k2,k3,k4,k5,0,:] =                                                                 np.mean(acc[i,j,k1,k2,k3,k4,k5,t,:], axis=0)
                                                             avgc[i,j,:] += cross_acc[i,j,k1,k2,k3,k4,k5,0,:]
-                                                            out2.write("%s %.2f %.2f %.2f %.2f\n" % (subfeats[j],
+                                                            out2.write("%s %.2f %.2f %.2f %.2f\n"                                                                        % (subfeats[j],
                                                                           cross_acc[i,j,k1,k2,k3,k4,k5,0,0],
                                                                           cross_acc[i,j,k1,k2,k3,k4,k5,0,1],
                                                                           cross_acc[i,j,k1,k2,k3,k4,k5,0,2],
@@ -1918,10 +1835,9 @@ def bargraph_perf_gen5(maxsurf,printit=True):
         out1.close()
         out2.close()
 
-def make_bargraphs_from_perf(i,maxsurf=6,printit=True):
+def make_bargraphs_from_perf(i,maxsurf=6):
     """Bargraph generation using bargraph tool, for i surfaces"""
-    if (printit):
-        print "---------------------------- Generating bar graphs for "+str(i+1)+" surfaces ------------------------------------"
+    print "---------------------------- Generating bar graphs for "+str(i+1)+" surfaces ------------------------------------"
     resfold = respath+str(i+1)+'/'
     allperf = glob.glob(resfold+"*.perf")
     maxperf = len(allperf)
@@ -1940,171 +1856,121 @@ def make_bargraphs_from_perf(i,maxsurf=6,printit=True):
             plt.xticks([])
             plt.yticks([])
 
-############ PREDICTING ACCURACY FOR ATI SENSOR DATA ##############
-def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
-    fileid = filename1(0,3,0,5)            #  all  features, 1 trained surface(surf 0)
-    fileidb = filename1(0,0,0,5)           # |FFT| features, 1 trained surface(surf 0)
-    # fileid5 = filename5(0,3,0,1,2,3,4,5)   #  all  features, 5 trained surfaces(surf 0-4)
-    # fileid5b = filename5(0,0,0,1,2,3,4,5)  # |FFT| features, 5 trained surfaces(surf 0-4)
-    model = np.load(fileid)['model'][0]
-    modelb = np.load(fileidb)['model'][0]
-    # model5 = np.load(fileid5)['model'][0]
-    # model5b = np.load(fileid5b)['model'][0]
-    for i in range(ltest):
-        Yout = model.predict(surf[3, i, 0])
-        Youtb = modelb.predict(surf[0, i, 0])
-        # Yout5 = model5.predict(surf[3, i, 0])
-        # Yout5b = model5b.predict(surf[0, i, 0])
-        if printit:
-            # print i, Yout.shape, Youtb.shape#, Yout5.shape, Yout5b.shape
-            pass
-        Ysc = model.score(surf[3, i ,0], surfla[:, i, 0])
-        Yscb = modelb.score(surf[0, i, 0], surfla[:, i, 0])
-        # Ysc5 = model5.score(surf[3, i, 0], surfla[:, i, 0])
-        # Ysc5b = model5b.score(surf[0, i ,0], surfla[:, i, 0])
-        Ycm = confusion_matrix(y_pred=Yout, y_true=surfla[:, i, 0])
-        Ycm = Ycm.astype('float') / Ycm.sum(axis=1)[:, np.newaxis]
-        Ycmb = confusion_matrix(y_pred=Youtb, y_true=surfla[:, i, 0])
-        Ycmb = Ycmb.astype('float') / Ycmb.sum(axis=1)[:, np.newaxis]
-        # Ycm5 = confusion_matrix(y_pred=Yout5, y_true=surfla[:, i, 0])
-        # Ycm5b = confusion_matrix(y_pred=Yout5b, y_true=surfla[:, i, 0])
-        if printit:
-            print "Accuracy for surface ", i, Ysc, Yscb #, Ysc5, Ysc5b
-            print "TN(stable) and TP(slip) for surface ", i, Ycm[0,0], Ycm[1,1],'|', Ycmb[0,0], Ycmb[1,1]
-    Youtn = model.predict(Xsp[2])
-    Youtbn = modelb.predict(Xsp[2][:,-window-2:-window/2-1])
-    # Yout5n = model5.predict(Xsp[2])
-    # Yout5bn = model5b.predict(Xsp[2][:,-window-2:-window/2-1])
-    Yscn = model.score(Xsp[2],Ysp[2])
-    Yscbn = modelb.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
-    # Ysc5n = model5.score(Xsp[2],Ysp[2])
-    # Ysc5bn = model5b.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
-    Ycmn = confusion_matrix(y_pred=Youtn, y_true=Ysp[2])
-    Ycmn = Ycmn.astype('float') / Ycmn.sum(axis=1)[:, np.newaxis]
-    Ycmbn = confusion_matrix(y_pred=Youtbn, y_true=Ysp[2])
-    Ycmbn = Ycmbn.astype('float') / Ycmbn.sum(axis=1)[:, np.newaxis]
-    # Ycm5n = confusion_matrix(y_pred=Yout5n, y_true=Ysp[2])
-    # Ycm5bn = confusion_matrix(y_pred=Yout5bn, y_true=Ysp[2])
-    print "======================================================================================"
-    print "Accuracy for dataset   ", Yscn, Yscbn  #, Ysc5n, Ysc5bn
-    print "TN(stable) and TP(slip) for dataset ", Ycmn[0,0], Ycmn[1,1],'|', Ycmbn[0,0], Ycmbn[1,1]
-    print "======================================================================================"
+############ TRAINING PROCEDURE ##############
+# necessary steps before training
+f,l,fd,member,m1,m2 = data_prep(datafile)                      # read input force and labels
+prefeat = compute_prefeat(f)                                   # compute corresponding prefeatures
+features, labels = feature_extraction(prefeat, member)         # feature extraction from prefeatures
+avg_feat_comp_time(prefeat)                                    # average feature extraction time
+new_labels = label_cleaning(prefeat,labels,member)             # trim labels, around change points
+X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2)   # compute data and labels, trimmed and untrimmed
+surf, surfla = computeXY_persurf(Xsp,Ysp)                      # compute per surface data and labels
+# training
+train_1_surface(surf,surfla)                                   # training of all combinations per 1 surface
+train_2_surface(surf,surfla)                                   # training of all combinations per 2 surfaces
+train_3_surface(surf,surfla)                                   # training of all combinations per 3 surfaces
+train_4_surface(surf,surfla)                                   # training of all combinations per 4 surfaces
+train_5_surface(surf,surfla)                                   # training of all combinations per 5 surfaces
 
-############ PREDICTING ACCURACY FOR ATI SENSOR DATA DETAILED ##############
-def testing_accuracy(surf, surfla, trsurf=[1, 5], ltest=6, printit=True):
-    lsurf = len(trsurf)
-    lsubfs = surf.shape[0]
-    acc = np.zeros((lsurf,lsubfs,ltest,2))
-    for r in range(lsurf):  # for each number of surfaces used for training
-        for k in range(lsubfs):  # for each subfs
-            filenames = glob.glob("data/results" + str(trsurf[r]) + "/fs_" + str(0) + "_subfs_" + str(k) + "_*.npz")
-            numf = len(filenames)
-            for i in range(ltest):  # for each testing surface
-                curracc = np.zeros(numf)
-                for n in range(numf):
-                    model = np.load(filenames[n])['model'][0]
-                    Ysc = model.score(surf[k, i ,0], surfla[:, i, 0])
-                    curracc[n] = Ysc
-                    # if printit:
-                    #     print "Surf: ",trsurf[r],"subfs: ",k,"test_surf: ",i,"model: ",n,"Acc: ",Ysc
-                acc[r,k,i,0] = np.mean(curracc)
-                acc[r,k,i,1] = np.std(curracc)
-                if printit:
-                    print "Surf: ",trsurf[r],"subfs: ",k,"test_surf: ",i,"Acc_mean-std: ",acc[r,k,i,0], acc[r,k,i,1]
-            if printit:
-                print "Surf: ",trsurf[r],"subfs: ",k,"Acc_mean-std: ",np.mean(acc[r,k,:,0]), np.mean(acc[r,k,:,1])
-    return acc
+############ OFFLINE TESTING PROCEDURE ##############
+# generate files with stats
+bargraph_perf_gen1(6)
+bargraph_perf_gen2(6)
+bargraph_perf_gen3(6)
+bargraph_perf_gen4(6)
+bargraph_perf_gen5(6)
+# use the bargraph tool to plot graphs from generated files
+# -left column cross-accuracy (trained on one, tested on all the others),
+# -right column self-accuracy (trained and tested on the same)
+# -each row i represents training only with i surfaces.
+# -each stack represents a training group, each bar represents a subfeatureset(AFFT,FREQ,TIME,BOTH)
+# -blue,green,yellow,red : TP,TN,FN,FP
+plt.figure(figsize=(20,30))
+for i in range(5):
+    make_bargraphs_from_perf(i)
+plt.show(block=False)
+
+############ ONLINE TESTING PROCEDURE ##############
+# same necessary steps as in training
+f,l,fd,member,m1,m2 = data_prep(validfile)
+prefeat = compute_prefeat(f)
+features, labels = feature_extraction(prefeat, member, validfeatfile, 'validfeat_')
+new_labels = label_cleaning(prefeat,labels,member)
+X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,validXYfile,validXYsplitfile)
+surf, surfla = computeXY_persurf(Xsp,Ysp,validsurffile)
 
 ############ VISUALIZING ONLINE TESTING PROCEDURE ##############
-def visualize(f, surf, surfla, chosensurf=5, plotpoints=200, save=False, printit=True):
-    matplotlib.rcParams['text.usetex'] = True
-    offset = window
-    inp = f[chosensurf][offset-600:,:3]
-    lab = f[chosensurf][offset-600:,-1]
-    INP1 = surf[3,chosensurf,0]
-    INP2 = surf[0,chosensurf,0]
-    OUT = surfla[:,chosensurf,0]
-    answerfreq = 5. # Hz
-    # plotpoints = 200.                             # 200 datapoints answer for visual purposes
-    # plotpoints = INP1.shape[0]*1.                 # like 1ms answers
-    # plotpoints = answerfreq*inp.shape[0]/window   # like real time answers (200ms or 5Hz)
-    skipINP = int(round(INP1.shape[0]/plotpoints))
-    endsetINP = range(INP1.shape[0])[::skipINP]
-    minlen = len(endsetINP)
-    mult = (inp.shape[0]-offset)/INP1.shape[0]*1.
-    tx = np.array(endsetINP[:minlen][:-1])*mult
-    tfx = range(inp.shape[0])[:int(endsetINP[-1]*mult)]
-    tfind = (np.array(tfx) + offset).tolist()
-    if printit:
-        print skipINP, len(endsetINP)
-    endsetINP = endsetINP[:minlen][-1]
-    if printit:
-        print skipINP, endsetINP
-    fileid = filename1(0,3,0,5)
-    fileidb = filename1(0,0,0,5)
-    model = np.load(fileid)['model'][0]
-    modelb = np.load(fileidb)['model'][0]
-    Yout = model.predict(INP1)
-    Youtb = modelb.predict(INP2)
-    if printit:
-        print Yout.shape, Youtb.shape
-    plt.rc('text', usetex=True)
-    plt.rc('axes', linewidth=2)
-    plt.rc('font', weight='bold')
-    plt.rcParams['text.latex.preamble'] = [r'\usepackage{sfmath} \boldmath']
-    ax = plt.figure(figsize=(20,10))
-    tf = np.linalg.norm(inp[tfind],axis=1)
-    tl = lab[tfind]
-    ty = Yout[:endsetINP:skipINP]+0.02
-    tyb = Youtb[:endsetINP:skipINP]+0.04
-    tyl = OUT[:endsetINP:skipINP]+0.06
-    if printit:
-        print tf.shape, ty.shape, len(tx)
-    p1, = plt.plot(tfx,tf/max(tf),linewidth=5)
-    plt.hold
-    pl, = plt.plot(tfx,tl,linewidth=5,color='green')
-    p = plt.scatter(tx,ty,color='red',s=30)
-    pb = plt.scatter(tx,tyb,color='magenta',s=30)
-    pbl = plt.scatter(tx,tyl,color='brown',s=30)
-    plt.text(100, 0.15, r'\textbf{Stable}', ha="center", va="center", rotation=0,
-                size=25)
-    plt.text(100, 0.85, r'\textbf{Slip}', ha="center", va="center", rotation=0,
-                size=25)
-    plt.annotate('', fontsize=10, xy=(100, 0.05), xytext=(100, 0.12),
-                arrowprops=dict(facecolor='black', shrink=0.05))
-    plt.annotate('', xy=(100, 0.98), xytext=(100, 0.9),
-                arrowprops=dict(facecolor='black', shrink=0.05))
-    plt.xlabel(r't ($1e^{-2} sec$)',fontsize=35)
-    # plt.yticks([])
-    plt.legend([p1,pl,p,pb,pbl],[r'$|\textbf{f}|$',r'$\textbf{Flabel}$',r'\textbf{outBOTH}',r'\textbf{outFFT}',r'$\textbf{TRlabel}$'], prop={'size': 35})
-    plt.tick_params(labelsize=20)
-    plt.tight_layout()
-    if save:
-        savefig(datapath+'validation_ati.pdf', bbox_inches='tight')
 
-###### Prediction function for new datasets
-def prediction(dataset,k=1,n=6,printit=False,plotit=False):
-    print "Filename for prediction: "+dataset
-    if dataset[-4:] == '.mat':
-        atifile = datapath+dataset
-        atifeatname = dataset[:-4]+featname
-        atifeatfile = featpath+atifeatname+'.npz'
-        atisurffile = featpath+atifeatname+'_'+str(k)+'fing_'+str(n)+'surf.npz'
-        atiXYfile = featpath+atifeatname+'_XY.npz'
-        atiXYsplitfile = featpath+atifeatname+'_XYsplit.npz'
-        f,l,fd,member,m1,m2 = data_prep(atifile,k=k,printit=printit)
-        prefeat = compute_prefeat(f,printit)
-        features, labels = feature_extraction(prefeat, member, atifeatfile, dataset[:-4]+'_',printit)
-        new_labels = label_cleaning(prefeat,labels,member,printit=printit)
-        X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,atiXYfile,atiXYsplitfile,printit)
-        surf, surfla = computeXY_persurf(Xsp,Ysp,atisurffile,n=n,k=k,printit=printit)
-        ############ PREDICTING SCORE FOR ATI SENSOR DATA ROTATIONAL ##############
-        testing_accuracy_simple(surf, surfla, Xsp, Ysp, ltest=n)
-        ############ PREDICTING SCORE FOR ATI SENSOR DATA DETAILED ##############
-        # _ = testing_accuracy(surf, surfla, ltest=6)
-        surfnosplit, surflanosplit = computeXY_persurf(X,Y,atisurffile,n=n,k=k,saveload=False,printit=printit)
-        for chosensurf in range(5):
-            if plotit:
-                visualize(f, surfnosplit, surflanosplit, chosensurf, plotpoints=200, printit=printit)
-    else:
-        print "Your dataset should be .mat file. You provided instead a file."+dataset[-3:]
+subfeats = ['AFFT','FREQ','TIME','BOTH']
+feats = ['fnorm','ftfn','fnormftfn']
+matplotlib.rcParams['text.usetex'] = True
+
+fileid = filename1(0,3,0,5)
+fileidb = filename1(0,0,0,5)
+fileid5 = filename5(0,3,0,1,2,3,4,5)
+fileid5b = filename5(0,0,0,1,2,3,4,5)
+model = np.load(fileid)['model'][0]
+modelb = np.load(fileidb)['model'][0]
+model5 = np.load(fileid5)['model'][0]
+model5b = np.load(fileid5b)['model'][0]
+Yout = model.predict(X[0])
+Youtb = modelb.predict(Xsp[0][:,-window-2:-window/2-1])
+Yout5 = model5.predict(Xsp[0])
+Yout5b = model5b.predict(Xsp[0][:,-window-2:-window/2-1])
+print Yout.shape, Yout5.shape, Yout5b.shape
+plt.rc('text', usetex=True)
+plt.rc('axes', linewidth=2)
+plt.rc('font', weight='bold')
+plt.rcParams['text.latex.preamble'] = [r'\usepackage{sfmath} \boldmath']
+offset = 2000-window
+endset = 2650
+skipf = 20
+skipy = 15
+ax = plt.figure(figsize=(20,10))
+tf = np.linalg.norm(f[0][offset+window::skipf,:3][:endset],axis=1)
+p1, = plt.plot(tf/max(tf),linewidth=5)
+ty = Yout[offset/skipf:][:endset]+0.02
+print tf.shape, ty.shape
+p = plt.scatter(range(len(tf))[::skipy],ty[::skipy],color='red',s=30)
+plt.hold
+plt.text(100, 0.15, r'\textbf{Stable}', ha="center", va="center", rotation=0,
+            size=25)
+plt.text(1000, 0.85, r'\textbf{Slip}', ha="center", va="center", rotation=0,
+            size=25)
+plt.annotate('', fontsize=10, xy=(100, 0.05), xytext=(100, 0.12),
+            arrowprops=dict(facecolor='black', shrink=0.05))
+plt.annotate('', xy=(1000, 0.98), xytext=(1000, 0.9),
+            arrowprops=dict(facecolor='black', shrink=0.05))
+plt.text(400, 0.55, r'\textbf{P1}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=810,linestyle='dashed',color='black',linewidth=5)
+plt.text(1000, 0.55, r'\textbf{P2}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=1200,linestyle='dashed',color='black',linewidth=5)
+plt.text(1250, 0.55, r'\textbf{P3}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=1335,linestyle='dashed',color='black',linewidth=5)
+plt.text(1385, 0.25, r'\textbf{P4}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=1445,linestyle='dashed',color='black',linewidth=5)
+plt.text(1650, 0.55, r'\textbf{P1}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=1830,linestyle='dashed',color='black',linewidth=5)
+plt.text(2000, 0.55, r'\textbf{P2}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=2200,linestyle='dashed',color='black',linewidth=5)
+plt.text(2250, 0.55, r'\textbf{P3}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=2330,linestyle='dashed',color='black',linewidth=5)
+plt.text(2385, 0.25, r'\textbf{P4}', ha="center", va="center", rotation=0,
+            size=25)
+plt.axvline(x=2440,linestyle='dashed',color='black',linewidth=5)
+plt.text(2540, 0.55, r'\textbf{P1}', ha="center", va="center", rotation=0,
+            size=25)
+plt.xlabel(r't ($1e^{-2} sec$)',fontsize=35)
+plt.yticks([])
+plt.legend([p1,p],[r'$|\textbf{f}|$',r'\textbf{out1}'],loc=2, prop={'size': 35})
+plt.tick_params(labelsize=20)
+plt.tight_layout()
+savefig(datapath+'validation.pdf', bbox_inches='tight')
+plt.show()

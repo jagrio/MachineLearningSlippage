@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib
 from pylab import *
 from featext import *
+from ml_training import *
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.image as mpimg

@@ -227,18 +227,18 @@ class ml:
         """|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
         """|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
         ## Time Domain Phinyomark feats
-        featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
-                     'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
+        featnames = ['IS', 'MAV', 'MAVSLP', 'SSI', 'VAR', 'RMS', 'RNG', 'WAVL', 'ZC', 'SSC', 'WAMP',
+                     'HIST_1', 'HIST_2', 'HIST_3']                                                 # 11+3{shist}
         ## Frequency Domain Phinyomark feats
-        featnames += ['arco1', 'arco2', 'arco3', 'mnf', 'mdf', 'mmnf', 'mmdf']                       # 3{arco}+4{mf}
-        featnames += ['reFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
-        featnames += ['imFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
+        featnames += ['ARCO_1', 'ARCO_2', 'ARCO_3', 'MNF', 'MDF', 'MMNF', 'MMDF']                  # 3{arco}+4{mf}
+        featnames += ['RF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
+        featnames += ['IF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
         ## Time Domain Golz feats
-        featnames += ['meanv', 'stdr', 'mx', 'rngx', 'rngy', 'med', 'hjorth', 'sentr', 'se', 'ssk']  # 10
-        featnames += ['acrol{:04d}'.format(i) for i in range(window)]                                # samples{acrol}
+        featnames += ['MV', 'STD', 'MAX', 'RNGX', 'RNGY', 'MED', 'HJORTH', 'SENTR', 'SE', 'SSK']   # 10
+        featnames += ['ACORL_{:04d}'.format(i) for i in range(window)]                             # samples{acrol}
         ## Frequency Domain Golz feats
-        featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
-        featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
+        featnames += ['AF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
+        featnames += ['PF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
 
         ############ PREFEATURES #############
         global prefeatfn, prefeatnames, prefeatid
@@ -728,6 +728,26 @@ def get_feat_id(feat_ind, printit=False):
             print(feat_ind[ind],featnames[val%(norm_feats[-1]+1)],lvl3,lvl2,lvl1)
 
     return(full_path_id,norm_time_feats,norm_freq_feats)
+
+def get_feat_names(printit=True):
+    """Return a list with all computed feature names"""
+    return featnames
+
+def get_feat_ids_from_names(feat_name_list, printit=False):
+    """Return a list of indexes corresponding to the given list of feature names"""
+    tmpfind = []
+    for m in feat_name_list:
+        try:
+            ti = m.index('_')
+        except:
+            ti = len(m)+1
+        for i in range(len(featnames)):
+            if featnames[i][:ti] == m[:ti]:
+                tmpfind.append(i)
+    if printit:
+        print tmpfind
+        print np.array(featnames)[tmpfind]
+    return tmpfind
 
 ############ Surface Splitting ############
 def surface_split(data_X, data_Y, n=6, k=2, printit=True):

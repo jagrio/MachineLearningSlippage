@@ -125,81 +125,6 @@ def ensure_dir(directory):
         if e.errno != errno.EEXIST:
             raise
 
-######## TRAINING DEFAULTS
-cv = KFold(n_splits=5,random_state=42)
-scaler = StandardScaler() ;
-decomp = PCA(n_components=20)
-names = ["NearNb", "RBFSVM1", "MLP1", "RandFor"]
-classifiers = [KNeighborsClassifier(5),
-               SVC(gamma='auto', C=1),
-               MLPClassifier(solver='lbfgs',alpha=1e-4,hidden_layer_sizes=(10,10),random_state=1,verbose=True),
-               RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)]
-
-download = 1            # Download pre-computed (1) data or compute them all anew (0)
-delete_big_features = 0 # Delete (1) or keep (0) computed big-in-size features,
-                        # helping mainly to avoid several computations when recomputing features
-
-############ INITIALISATION PARAMETERS ############
-window, shift = 1024, 20
-samplesperdataset = 10000
-havelabel = 1
-returntime = 0
-featlabel = 0         # 0: all features, 1: temporal, 2: frequency, 3: FFT only
-magnFFT = 0           # 0: FFT in magnitude format, 1: FFT in real and imag format,
-featall = 0           # 0: all, 1: feat1 (phinyomark's), 2: feat2 (golz's)
-featparam = [havelabel,featlabel,magnFFT,featall,returntime]
-CV = 5                # cross validation checks
-numfeat = 10          # number of features to show
-nfeat = 1000          # number of features to keep
-###### Initialize necessary names and paths
-datapath = 'data/'
-ensure_dir(datapath)
-datafile = datapath+'dataset.npz'
-validfile = datapath+'validation.mat'
-featpath = datapath+'features/'+str(window)+'_'+str(shift)+'/'
-ensure_dir(featpath)
-allfeatpath = featpath+'AllFeatures/'
-ensure_dir(allfeatpath)
-prefeatname = 'prefeatures'+'_'+str(window)+'_'+str(shift)+'_'+str(samplesperdataset)
-prefeatfile = featpath+prefeatname+'.npz'
-featname = 'features'+'_'+str(window)+'_'+str(shift)+'_'+str(samplesperdataset)
-featfile = featpath+featname+'.npz'
-validfeatname = 'valid'+featname
-validfeatfile = featpath+validfeatname+'.npz'
-surffile = featpath+featname+'_2fing_6surf.npz'
-XYfile = featpath+featname+'_XY.npz'
-XYsplitfile = featpath+featname+'_XYsplit.npz'
-validsurffile = featpath+validfeatname+'_2fing_6surf.npz'
-validXYfile = featpath+validfeatname+'_XY.npz'
-validXYsplitfile = featpath+validfeatname+'_XYsplit.npz'
-respath = datapath+'results'
-toolfile = datapath+'bargraph.zip'
-toolpath = datapath+'bargraph-rel_4_8/'
-tool = './'+toolpath+'bargraph.pl'
-
-############ Feature Names ###########
-"""features:                                                                       ||      if\n"""+\
-"""|--> time domain      :                                                         || samples = 1024\n"""+\
-"""|----|---> phinyomark : 11+3{shist} --------------------------> = 14+0.0samples ||             14\n"""+\
-"""|----|---> golz       : 10+samples{acrol} --------------------> = 10+1.0samples ||           1034\n"""+\
-"""|--> frequency domain :\n"""+\
-"""|----|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} --> =  9+1.0samples ||           1033\n"""+\
-"""|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
-"""|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
-## Time Domain Phinyomark feats
-featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
-             'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
-## Frequency Domain Phinyomark feats
-featnames += ['arco1', 'arco2', 'arco3', 'mnf', 'mdf', 'mmnf', 'mmdf']                       # 3{arco}+4{mf}
-featnames += ['reFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
-featnames += ['imFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
-## Time Domain Golz feats
-featnames += ['meanv', 'stdr', 'mx', 'rngx', 'rngy', 'med', 'hjorth', 'sentr', 'se', 'ssk']  # 10
-featnames += ['acrol{:04d}'.format(i) for i in range(window)]                                # samples{acrol}
-## Frequency Domain Golz feats
-featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
-featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
-
 def comb(n,r):
     """Combinations of n objects by r, namely picking r among n possible.
     comb(n,r) = n!/(r!(n-r)!)
@@ -234,13 +159,178 @@ def lab(f):
     """Label embedded in input f"""
     return np.abs(f[:,-1])
 
-############ PREFEATURES #############
-prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
-prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
-prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
+# cv = KFold(n_splits=5,random_state=42)
+# scaler = StandardScaler() ;
+# decomp = PCA(n_components=20)
+# names = ["NearNb", "RBFSVM1", "MLP1", "RandFor"]
+# classifiers = [KNeighborsClassifier(5),
+#                SVC(gamma='auto', C=1),
+#                MLPClassifier(solver='lbfgs',alpha=1e-4,hidden_layer_sizes=(10,10),random_state=1,verbose=True),
+#                RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)]
+#
+# download = 1            # Download pre-computed (1) data or compute them all anew (0)
+# delete_big_features = 0 # Delete (1) or keep (0) computed big-in-size features,
+#                         # helping mainly to avoid several computations when recomputing features
+#
+# ############ INITIALISATION PARAMETERS ############
+# window, shift = 1024, 20
+# samplesperdataset = 10000
+# havelabel = 1
+# returntime = 0
+# featlabel = 0         # 0: all features, 1: temporal, 2: frequency, 3: FFT only
+# magnFFT = 0           # 0: FFT in magnitude format, 1: FFT in real and imag format,
+# featall = 0           # 0: all, 1: feat1 (phinyomark's), 2: feat2 (golz's)
+# featparam = [havelabel,featlabel,magnFFT,featall,returntime]
+# CV = 5                # cross validation checks
+# numfeat = 10          # number of features to show
+# nfeat = 1000          # number of features to keep
+# ###### Initialize necessary names and paths
+# datapath = 'data/'
+# ensure_dir(datapath)
+# datafile = datapath+'dataset.npz'
+# validfile = datapath+'validation.mat'
+# featpath = datapath+'features/'+str(window)+'_'+str(shift)+'/'
+# ensure_dir(featpath)
+# allfeatpath = featpath+'AllFeatures/'
+# ensure_dir(allfeatpath)
+# prefeatname = 'prefeatures'+'_'+str(window)+'_'+str(shift)+'_'+str(samplesperdataset)
+# prefeatfile = featpath+prefeatname+'.npz'
+# featname = 'features'+'_'+str(window)+'_'+str(shift)+'_'+str(samplesperdataset)
+# featfile = featpath+featname+'.npz'
+# validfeatname = 'valid'+featname
+# validfeatfile = featpath+validfeatname+'.npz'
+# surffile = featpath+featname+'_2fing_6surf.npz'
+# XYfile = featpath+featname+'_XY.npz'
+# XYsplitfile = featpath+featname+'_XYsplit.npz'
+# validsurffile = featpath+validfeatname+'_2fing_6surf.npz'
+# validXYfile = featpath+validfeatname+'_XY.npz'
+# validXYsplitfile = featpath+validfeatname+'_XYsplit.npz'
+# respath = datapath+'results'
+# toolfile = datapath+'bargraph.zip'
+# toolpath = datapath+'bargraph-rel_4_8/'
+# tool = './'+toolpath+'bargraph.pl'
+#
+# ############ Feature Names ###########
+# """features:                                                                       ||      if\n"""+\
+# """|--> time domain      :                                                         || samples = 1024\n"""+\
+# """|----|---> phinyomark : 11+3{shist} --------------------------> = 14+0.0samples ||             14\n"""+\
+# """|----|---> golz       : 10+samples{acrol} --------------------> = 10+1.0samples ||           1034\n"""+\
+# """|--> frequency domain :\n"""+\
+# """|----|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} --> =  9+1.0samples ||           1033\n"""+\
+# """|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
+# """|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
+# ## Time Domain Phinyomark feats
+# featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
+#              'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
+# ## Frequency Domain Phinyomark feats
+# featnames += ['arco1', 'arco2', 'arco3', 'mnf', 'mdf', 'mmnf', 'mmdf']                       # 3{arco}+4{mf}
+# featnames += ['reFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
+# featnames += ['imFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
+# ## Time Domain Golz feats
+# featnames += ['meanv', 'stdr', 'mx', 'rngx', 'rngy', 'med', 'hjorth', 'sentr', 'se', 'ssk']  # 10
+# featnames += ['acrol{:04d}'.format(i) for i in range(window)]                                # samples{acrol}
+# ## Frequency Domain Golz feats
+# featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
+# featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
+#
+# ############ PREFEATURES #############
+# prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
+# prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
+# prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
+#
+# ############ SUBFEATURES #############
+# subfeats = ['AFFT','FREQ','TIME','BOTH']
 
-############ SUBFEATURES #############
-subfeats = ['AFFT','FREQ','TIME','BOTH']
+class ml:
+    def __init__(self,c):
+        ######## TRAINING DEFAULTS
+        global cv, scaler, decomp, names, classifiers, download, delete_big_features
+        cv = c.cv
+        scaler = c.scaler
+        decomp = c.decomp
+        names = c.names
+        classifiers = c.classifiers
+
+        download = c.download                       # Download pre-computed (1) data or compute them all anew (0)
+        delete_big_features = c.delete_big_features # Delete (1) or keep (0) computed big-in-size features,
+                                             # helping mainly to avoid several computations when recomputing features
+
+        ############ INITIALISATION PARAMETERS ############
+        global window, shift, samplesperdataset, havelabel, returntime, \
+               featlabel, magnFFT, featall, featparam, numfeat, nfeat
+        window, shift = c.window, c.shift
+        samplesperdataset = c.samplesperdataset
+        havelabel = c.havelabel
+        returntime = c.returntime
+        featlabel = c.featlabel         # 0: all features, 1: temporal, 2: frequency, 3: FFT only
+        magnFFT = c.magnFFT             # 0: FFT in magnitude format, 1: FFT in real and imag format,
+        featall = c.featall             # 0: all, 1: feat1 (phinyomark's), 2: feat2 (golz's)
+        featparam = [havelabel,featlabel,magnFFT,featall,returntime]
+        CV = c.CV                       # cross validation checks
+        numfeat = c.numfeat             # number of features to show
+        nfeat = c.nfeat                 # number of features to keep
+        ###### Initialize necessary names and paths
+        global datapath, datafile, validfile, featpath, allfeatpath, prefeatpath,\
+               prefeatname, prefeatfile, featname, featfile, validfeatname, validfeatfile,\
+               surffile, XYfile, XYsplitfile, respath, toolfile, toolpath, tool
+        datapath = c.datapath
+        ensure_dir(datapath)
+        datafile = c.datafile
+        validfile = c.validfile
+        featpath = c.featpath
+        ensure_dir(featpath)
+        allfeatpath = c.allfeatpath
+        ensure_dir(allfeatpath)
+        prefeatname = c.prefeatname
+        prefeatfile = c.prefeatfile
+        featname = c.featname
+        featfile = c.featfile
+        validfeatname = c.validfeatname
+        validfeatfile = c.validfeatfile
+        surffile = c.surffile
+        XYfile = c.XYfile
+        XYsplitfile = c.XYsplitfile
+        validsurffile = c.validsurffile
+        validXYfile = c.validXYfile
+        validXYsplitfile = c.validXYsplitfile
+        respath = c.respath
+        toolfile = c.toolfile
+        toolpath = c.toolpath
+        tool = c.tool
+
+        ############ Feature Names ###########
+        global featnames
+        """features:                                                                       ||      if\n"""+\
+        """|--> time domain      :                                                         || samples = 1024\n"""+\
+        """|----|---> phinyomark : 11+3{shist} --------------------------> = 14+0.0samples ||             14\n"""+\
+        """|----|---> golz       : 10+samples{acrol} --------------------> = 10+1.0samples ||           1034\n"""+\
+        """|--> frequency domain :\n"""+\
+        """|----|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} --> =  9+1.0samples ||           1033\n"""+\
+        """|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
+        """|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
+        ## Time Domain Phinyomark feats
+        featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
+                     'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
+        ## Frequency Domain Phinyomark feats
+        featnames += ['arco1', 'arco2', 'arco3', 'mnf', 'mdf', 'mmnf', 'mmdf']                       # 3{arco}+4{mf}
+        featnames += ['reFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
+        featnames += ['imFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
+        ## Time Domain Golz feats
+        featnames += ['meanv', 'stdr', 'mx', 'rngx', 'rngy', 'med', 'hjorth', 'sentr', 'se', 'ssk']  # 10
+        featnames += ['acrol{:04d}'.format(i) for i in range(window)]                                # samples{acrol}
+        ## Frequency Domain Golz feats
+        featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
+        featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
+
+        ############ PREFEATURES #############
+        global prefeatfn, prefeatnames, prefeatid
+        prefeatfn = np.array([sf,ft,fn,ftn,lab]) # convert to np.array to be easily indexed by a list
+        prefeatnames = np.array(['fnorm','ft','fn','ftdivfn','label'])
+        prefeatid = [0,4]     # only the prefeatures with corresponding ids will be computed
+
+        ############ SUBFEATURES #############
+        global subfeats
+        subfeats = ['AFFT','FREQ','TIME','BOTH']
 
 ############ Download necessary files ############
 def convert_bytes(num):
@@ -448,7 +538,7 @@ def tmpfeatfilename(p,name,mode='all'):
     elif mode == 'red':
         return allfeatpath+name+str(p)+'_red'+str(samplesperdataset)+'.pkl.z'
 
-def feature_extraction(prefeat, member, featfile=featfile, name='feat_', printit=True):
+def feature_extraction(prefeat, member, featfile, name='feat_', printit=True):
     """Computation of all features in parallel or loading if already computed
     -> prefeat          : computed prefeatures
     -> member           : how much each dataset is represented,
@@ -581,7 +671,7 @@ def label_cleaning(prefeat,labels,member,history=500,printit=True):
     return new_labels
 
 ############ GATHERING into complete arrays ready for FITTING ############
-def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplitfile,printit=True):
+def computeXY(features,labels,new_labels,m1,m2,XYfile,XYsplitfile,printit=True):
     """
     -> features       : computed features as input data
     -> labels         : corresponding labels
@@ -646,7 +736,7 @@ def computeXY(features,labels,new_labels,m1,m2,XYfile=XYfile,XYsplitfile=XYsplit
     return X,Y,Yn,Xsp,Ysp
 
 ############ Prepare the indeces for each feature ############
-def get_feat_id(feat_ind, sample_window=window, printit=False):
+def get_feat_id(feat_ind, printit=False):
     """Find the corresponding indeces of the desired features inside feature vector,
     and link them with their names and level of abstraction
     -> feat_ind        : range of indeces
@@ -656,6 +746,7 @@ def get_feat_id(feat_ind, sample_window=window, printit=False):
     <- norm_time_feats : indeces of time features
     <- norm_freq_feats : indeces of frequency features
     """
+    sample_window = window
     # get the feat inds wrt their source : 3rd level
     norm_time_phin = range(0,14)
     norm_freq_phin = range(norm_time_phin[-1] + 1, norm_time_phin[-1] + 9 + sample_window + 1)
@@ -748,7 +839,7 @@ def surface_split(data_X, data_Y, n=6, k=2, printit=True):
     return surfaces, surf_labels
 
 ############ Featureset Splitting ############
-def feat_subsets(data,fs_ind,ofs=len(featnames)):
+def feat_subsets(data,fs_ind,ofs):
     """returns a splitting per featureset of input features
     -> data                                : input data X
     -> fs_ind                              : prefeature id
@@ -760,7 +851,7 @@ def feat_subsets(data,fs_ind,ofs=len(featnames)):
     amfft_inds = []
     temp1 = deepcopy(data)
 
-    for i in range(len(featnames)):
+    for i in range(ofs):
         if (featnames[i].startswith('amFFT')):
             amfft_inds.append(i)
 
@@ -783,7 +874,7 @@ def feat_subsets(data,fs_ind,ofs=len(featnames)):
     return X_amfft, X_freq_all, X_time, X_both
 
 ############ Prepare the dataset split for each surface ############
-def computeXY_persurf(Xsp, Ysp, surffile=surffile, n=6, k=2, saveload=True, printit=True):
+def computeXY_persurf(Xsp, Ysp, surffile, n=6, k=2, saveload=True, printit=True):
     """returns a split per surface data and label of inputs
     -> Xsp, Ysp     : input data and labels, after having trimmed data around the label's change points
     -> surffile     : desired output's filename for saving
@@ -806,10 +897,10 @@ def computeXY_persurf(Xsp, Ysp, surffile=surffile, n=6, k=2, saveload=True, prin
                     print i,j,surf1.shape
                 if j == tmpsurf.shape[0]:
                     # ommit a sample for converting to array
-                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j-1,:-1,:],i))
+                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j-1,:-1,:],i,len(featnames)))
                 else:
                     # keep all subfeaturesets
-                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j],i))
+                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j],i,len(featnames)))
             surf.append(tmpsurfsubfeat)
             surfla.append(surfla1)
         # surf dims: (featuresets, surfaces, prefeaturesets) with each one enclosing (samples, features)

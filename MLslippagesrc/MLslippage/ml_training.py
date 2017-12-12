@@ -1976,7 +1976,9 @@ def make_bargraphs_from_perf(i,maxsurf=6,printit=True):
             plt.yticks([])
 
 ############ PREDICTING ACCURACY FOR ATI SENSOR DATA ##############
-def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
+def testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind=[-1], printit=True, ltest=6):
+    if len(keepind) == 0 or keepind[0] == -1:
+        keepind = range(len(featnames))
     fileid = filename1(0,3,0,5)            #  all  features, 1 trained surface(surf 0)
     fileidb = filename1(0,0,0,5)           # |FFT| features, 1 trained surface(surf 0)
     # fileid5 = filename5(0,3,0,1,2,3,4,5)   #  all  features, 5 trained surfaces(surf 0-4)
@@ -2006,11 +2008,11 @@ def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
         if printit:
             print "Accuracy for surface ", i, Ysc, Yscb #, Ysc5, Ysc5b
             print "TN(stable) and TP(slip) for surface ", i, Ycm[0,0], Ycm[1,1],'|', Ycmb[0,0], Ycmb[1,1]
-    Youtn = model.predict(Xsp[2])
+    Youtn = model.predict(Xsp[2][:,keepind])
     Youtbn = modelb.predict(Xsp[2][:,-window-2:-window/2-1])
     # Yout5n = model5.predict(Xsp[2])
     # Yout5bn = model5b.predict(Xsp[2][:,-window-2:-window/2-1])
-    Yscn = model.score(Xsp[2],Ysp[2])
+    Yscn = model.score(Xsp[2][:,keepind],Ysp[2])
     Yscbn = modelb.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
     # Ysc5n = model5.score(Xsp[2],Ysp[2])
     # Ysc5bn = model5b.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
@@ -2032,7 +2034,7 @@ def testing_accuracy(surf, surfla, trsurf=[1, 5], ltest=6, printit=True):
     acc = np.zeros((lsurf,lsubfs,ltest,2))
     for r in range(lsurf):  # for each number of surfaces used for training
         for k in range(lsubfs):  # for each subfs
-            filenames = glob.glob("data/results" + str(trsurf[r]) + "/fs_" + str(0) + "_subfs_" + str(k) + "_*.npz")
+            filenames = glob.glob(respath + str(trsurf[r]) + "/fs_" + str(0) + "_subfs_" + str(k) + "_*.npz")
             numf = len(filenames)
             for i in range(ltest):  # for each testing surface
                 curracc = np.zeros(numf)
@@ -2118,25 +2120,32 @@ def visualize(f, surf, surfla, chosensurf=5, plotpoints=200, save=False, printit
         savefig(datapath+'validation_ati.pdf', bbox_inches='tight')
 
 ###### Prediction function for new datasets
-def prediction(dataset,keepind=[-1],k=1,n=6,printit=False,plotit=False):
+def prediction(dataset,keepind=[-1],k=1,n=6,scale=1.0,printit=False,plotit=False):
     if len(keepind) == 0 or keepind[0] == -1:
         keepind = range(len(featnames))
     print "Filename for prediction: "+dataset
     if dataset[-4:] == '.mat':
         atifile = datapath+dataset
-        atifeatname = dataset[:-4]+featname
+        atifeatname = dataset[:-4]+featname+'_'+str(scale)
         atifeatfile = featpath+atifeatname+'.npz'
-        atisurffile = featpath+atifeatname+'_'+str(k)+'fing_'+str(n)+'surf.npz'
+        atisurffile = featpath+atifeatname+'_'+str(len(keepind))+'_'+str(k)+'fing_'+str(n)+'surf.npz'
         atiXYfile = featpath+atifeatname+'_XY.npz'
         atiXYsplitfile = featpath+atifeatname+'_XYsplit.npz'
         f,l,fd,member,m1,m2 = data_prep(atifile,k=k,printit=printit)
+        plt.plot(f[0][:,:-1])
+        print np.max(f)
+        for i in range(len(f)):
+            f[i][:,:-1] = scale * f[i][:,:-1]
+        plt.plot(f[0][:,:-1])
+        print np.max(f)
         prefeat = compute_prefeat(f,printit)
+        # print np.max(prefeat)
         features, labels = feature_extraction(prefeat, member, atifeatfile, dataset[:-4]+'_',printit)
         new_labels = label_cleaning(prefeat,labels,member,printit=printit)
         X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,atiXYfile,atiXYsplitfile,printit)
         surf, surfla = computeXY_persurf(Xsp,Ysp,atisurffile,keepind,n=n,k=k,printit=printit)
         ############ PREDICTING SCORE FOR ATI SENSOR DATA ROTATIONAL ##############
-        testing_accuracy_simple(surf, surfla, Xsp, Ysp, ltest=n)
+        testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind, ltest=n)
         ############ PREDICTING SCORE FOR ATI SENSOR DATA DETAILED ##############
         # _ = testing_accuracy(surf, surfla, ltest=6)
         surfnosplit, surflanosplit = computeXY_persurf(X,Y,atisurffile,keepind,n=n,k=k,saveload=False,printit=printit)

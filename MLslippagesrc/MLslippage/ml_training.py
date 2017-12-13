@@ -298,7 +298,7 @@ def extract_file(source,destination='.'):
         print "Unsupported extension for decompressing. Supported extensions are .zip, .tgz, .tar.gz, .tar"
 
 ######### Download necessary dataset #############
-def download_required_files(download=1):
+def download_required_files():
     total_size_of_downloads = 0
     # datafile = datapath+'dataset.npz'
     # validfile = datapath+'validation.mat'
@@ -515,6 +515,9 @@ def feature_extraction(prefeat, member, featfile, name='feat_', printit=True):
                     print 'sample:',ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, tmp.shape
                 if delete_big_features:
                     call(['rm',tmpfn]) # delete big feature file, after reducing its size to desired
+            else:
+                if delete_big_features:
+                    call(['rm',tmpfn]) # delete big feature file, since reduced size file exists
         for ixp in range(len(prefeat)):
             if delete_big_features:
                 tmpfn = tmpfeatfilename(ixp,name)
@@ -2126,21 +2129,18 @@ def prediction(dataset,keepind=[-1],k=1,n=6,scale=1.0,printit=False,plotit=False
     print "Filename for prediction: "+dataset
     if dataset[-4:] == '.mat':
         atifile = datapath+dataset
-        atifeatname = dataset[:-4]+featname+'_'+str(scale)
+        atifeatname = dataset[:-4]+'_'+featname+'_'+str(scale)+'_'
         atifeatfile = featpath+atifeatname+'.npz'
         atisurffile = featpath+atifeatname+'_'+str(len(keepind))+'_'+str(k)+'fing_'+str(n)+'surf.npz'
         atiXYfile = featpath+atifeatname+'_XY.npz'
         atiXYsplitfile = featpath+atifeatname+'_XYsplit.npz'
         f,l,fd,member,m1,m2 = data_prep(atifile,k=k,printit=printit)
-        plt.plot(f[0][:,:-1])
-        print np.max(f)
+        print np.max(f[0][:,:-1])
         for i in range(len(f)):
             f[i][:,:-1] = scale * f[i][:,:-1]
-        plt.plot(f[0][:,:-1])
-        print np.max(f)
+        print np.max(f[0][:,:-1])
         prefeat = compute_prefeat(f,printit)
-        # print np.max(prefeat)
-        features, labels = feature_extraction(prefeat, member, atifeatfile, dataset[:-4]+'_',printit)
+        features, labels = feature_extraction(prefeat, member, atifeatfile, atifeatname,printit)
         new_labels = label_cleaning(prefeat,labels,member,printit=printit)
         X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,atiXYfile,atiXYsplitfile,printit)
         surf, surfla = computeXY_persurf(Xsp,Ysp,atisurffile,keepind,n=n,k=k,printit=printit)

@@ -94,7 +94,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 import re
 import datetime
 import urllib
@@ -341,11 +341,13 @@ def download_required_files():
     print "Downloaded "+convert_bytes(total_size_of_downloads)+" of content in total!"
 
 ############ READ THE DATASET ############
-def data_prep(datafile,step=1,k=2,printit=True):
+def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
     """Prepare dataset, from each of the k fingers for all n surfaces (see fd for details)
     -> datafile : input file either in .npz or in .mat form
     -> step     : increasing sampling step, decreases sampling frequency of input, which is 1KHz initially
     -> k        : number of fingers logging data
+    -> scale    : list of scales for scaled outputs to be computed
+    -> fdes     : desired force to be subtracted from the force norm measurements
     ----- input format ----- either 'fi', 'li', 'fdi', with i in {1,...,k} for each finger
                              or     'f', 'l', 'fd' for a finger
                              corresponding to force, label and details respectively
@@ -402,7 +404,29 @@ def data_prep(datafile,step=1,k=2,printit=True):
         f = np.array([fi[::step,:] for fi in f])
         if printit:
             print 6, '-> fsampled:',f.shape, ":", [fi.shape for fi in f]
-    return f,l,fd,member,m1,m2
+    ####### SCALING
+    tf = deepcopy(f)
+    tl = deepcopy(l)
+    tfd = fd.tolist()
+    for sc in scale:
+        for i in range(len(f)):
+            tmpf = deepcopy(f[i][:,:-1])
+            unitmpf = tmpf / np.linalg.norm(tmpf)                # find unitvector
+            tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)   # scale data after removing DC
+            tfd[i].append('scale='+str(sc))
+        tf = np.concatenate((deepcopy(f),tf),axis=0)
+        tl = np.concatenate((deepcopy(l),tl),axis=0)
+        tfd = fd.tolist()+tfd
+        # tfd = np.concatenate((deepcopy(fd),tfd),axis=0)
+    tf = tf[len(f):]
+    tl = tl[len(l):]
+    tfd = np.array(tfd[len(fd):])
+    tm = np.ones(len(f)*len(scale))*member[0]/(len(scale)*1.)
+    m1, m2 = len(scale)*m1, len(scale)*m2
+    if printit:
+        print 7, '-> fscaled: ', tf.shape, tm.shape, tl.shape, tfd.shape
+
+    return tf,tl,tfd,tm,m1,m2
 
 ############ PRE-FEATURES ############
 ###### DEFINITION
@@ -787,7 +811,7 @@ def feat_subsets(data,fs_ind,keep_from_fs_ind):
     """returns a splitting per featureset of input features
     -> data                                : input data X
     -> fs_ind                              : prefeature id
-    -> keep_ind                            : list of feature indexes to be kept from whole feature vector
+    -> keep_from_fs_ind                    : list of feature indexes to be kept from whole feature vector
     <- X_amfft, X_freq_all, X_time, X_both : split featuresets amplitude of FFT, all time only,
                                                                all frequency only and all features
     """
@@ -823,6 +847,8 @@ def computeXY_persurf(Xsp, Ysp, surffile, keepind=[-1], n=6, k=2, saveload=True,
     """returns a split per surface data and label of inputs
     -> Xsp, Ysp     : input data and labels, after having trimmed data around the label's change points
     -> surffile     : desired output's filename for saving
+    -> keepind      : list of feature indexes to be kept from whole feature vector
+    -> n,k,saveload : different surfaces in dataset, number of different data sources (fingers), save/load computed data
     <- surf, surfla : output data and label, split per surface
     """
     if len(keepind) == 0 or keepind[0] == -1:
@@ -1980,6 +2006,15 @@ def make_bargraphs_from_perf(i,maxsurf=6,printit=True):
 
 ############ PREDICTING ACCURACY FOR ATI SENSOR DATA ##############
 def testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind=[-1], printit=True, ltest=6):
+    """Evaluating performance of single classifier
+    -> surf, Xsp       : surface or whole dataset
+    -> surfla, Ysp     : surface label or whole dataset labels
+    -> keepind         : feature indexes to keep (default keep all)
+    -> ltest           : number of testing surfaces
+    <- Yscn, Yscbn     : Accuracy for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    <- Yf1scn, Yf1scbn : F1score for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    <- Ycmn, Ycmbn     : Confusion matrix for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    """
     if len(keepind) == 0 or keepind[0] == -1:
         keepind = range(len(featnames))
     fileid = filename1(0,3,0,5)            #  all  features, 1 trained surface(surf 0)
@@ -2006,10 +2041,13 @@ def testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind=[-1], printit=True, 
         Ycm = Ycm.astype('float') / Ycm.sum(axis=1)[:, np.newaxis]
         Ycmb = confusion_matrix(y_pred=Youtb, y_true=surfla[:, i, 0])
         Ycmb = Ycmb.astype('float') / Ycmb.sum(axis=1)[:, np.newaxis]
+        Yf1sc = f1_score(y_pred=Yout, y_true=surfla[:, i, 0])
+        Yf1scb = f1_score(y_pred=Youtb, y_true=surfla[:, i, 0])
         # Ycm5 = confusion_matrix(y_pred=Yout5, y_true=surfla[:, i, 0])
         # Ycm5b = confusion_matrix(y_pred=Yout5b, y_true=surfla[:, i, 0])
         if printit:
             print "Accuracy for surface ", i, Ysc, Yscb #, Ysc5, Ysc5b
+            print "F1score for surface  ", i, Yf1sc, Yf1scb
             print "TN(stable) and TP(slip) for surface ", i, Ycm[0,0], Ycm[1,1],'|', Ycmb[0,0], Ycmb[1,1]
     Youtn = model.predict(Xsp[2][:,keepind])
     Youtbn = modelb.predict(Xsp[2][:,-window-2:-window/2-1])
@@ -2023,15 +2061,26 @@ def testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind=[-1], printit=True, 
     Ycmn = Ycmn.astype('float') / Ycmn.sum(axis=1)[:, np.newaxis]
     Ycmbn = confusion_matrix(y_pred=Youtbn, y_true=Ysp[2])
     Ycmbn = Ycmbn.astype('float') / Ycmbn.sum(axis=1)[:, np.newaxis]
+    Yf1scn = f1_score(y_pred=Youtn, y_true=Ysp[2])
+    Yf1scbn = f1_score(y_pred=Youtbn, y_true=Ysp[2])
     # Ycm5n = confusion_matrix(y_pred=Yout5n, y_true=Ysp[2])
     # Ycm5bn = confusion_matrix(y_pred=Yout5bn, y_true=Ysp[2])
     print "======================================================================================"
     print "Accuracy for dataset   ", Yscn, Yscbn  #, Ysc5n, Ysc5bn
+    print "F1score for dataset   ", Yf1scn, Yf1scbn
     print "TN(stable) and TP(slip) for dataset ", Ycmn[0,0], Ycmn[1,1],'|', Ycmbn[0,0], Ycmbn[1,1]
     print "======================================================================================"
+    return Yscn, Yscbn, Yf1scn, Yf1scbn, Ycmn, Ycmbn
 
 ############ PREDICTING ACCURACY FOR ATI SENSOR DATA DETAILED ##############
 def testing_accuracy(surf, surfla, trsurf=[1, 5], ltest=6, printit=True):
+    """Evaluating performance of all classifiers on average
+    -> surf      : surfaces of whole dataset
+    -> surfla    : surface labels of whole dataset
+    -> trsurf    : number of surfaces used for training, that will be evaluated
+    -> ltest     : number of testing surfaces
+    <- acc       : Average accuracy from all trained models
+    """
     lsurf = len(trsurf)
     lsubfs = surf.shape[0]
     acc = np.zeros((lsurf,lsubfs,ltest,2))
@@ -2123,22 +2172,22 @@ def visualize(f, surf, surfla, chosensurf=5, plotpoints=200, save=False, printit
         savefig(datapath+'validation_ati.pdf', bbox_inches='tight')
 
 ###### Prediction function for new datasets
-def prediction(dataset,keepind=[-1],k=1,n=6,scale=1.0,printit=False,plotit=False):
+def prediction(dataset,keepind=[-1],k=1,n=6,scale=1.0,fdes=0.0,printit=False,plotit=False):
     if len(keepind) == 0 or keepind[0] == -1:
         keepind = range(len(featnames))
     print "Filename for prediction: "+dataset
     if dataset[-4:] == '.mat':
         atifile = datapath+dataset
-        atifeatname = dataset[:-4]+'_'+featname+'_'+str(scale)+'_'
+        atifeatname = dataset[:-4]+'_'+featname+'_'+str(scale)+'_'+str(fdes)+'_'
         atifeatfile = featpath+atifeatname+'.npz'
         atisurffile = featpath+atifeatname+'_'+str(len(keepind))+'_'+str(k)+'fing_'+str(n)+'surf.npz'
         atiXYfile = featpath+atifeatname+'_XY.npz'
         atiXYsplitfile = featpath+atifeatname+'_XYsplit.npz'
-        f,l,fd,member,m1,m2 = data_prep(atifile,k=k,printit=printit)
-        print np.max(f[0][:,:-1])
-        for i in range(len(f)):
-            f[i][:,:-1] = scale * f[i][:,:-1]
-        print np.max(f[0][:,:-1])
+        f,l,fd,member,m1,m2 = data_prep(atifile,scale=[scale],fdes=fdes,k=k,printit=printit)
+        # print np.max(f[0][:,:-1])
+        # for i in range(len(f)):
+        #     f[i][:,:-1] = scale * f[i][:,:-1]
+        # print np.max(f[0][:,:-1])
         prefeat = compute_prefeat(f,printit)
         features, labels = feature_extraction(prefeat, member, atifeatfile, atifeatname,printit)
         new_labels = label_cleaning(prefeat,labels,member,printit=printit)

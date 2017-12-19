@@ -408,6 +408,9 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
     tf = deepcopy(f)
     tl = deepcopy(l)
     tfd = fd.tolist()
+    if len(scale) == 1 and scale[0] < 0.0:   # adaptive scaling
+        scale = [1./(1.1*fdes)]
+        fdes = 0.0
     for sc in scale:
         for i in range(len(f)):
             tmpf = deepcopy(f[i][:,:-1])
@@ -417,11 +420,11 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
                 unitmpf[:,j] = np.divide(tmpf[:,j], tmpnorm)           # find unitvector
             tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
             tfd[i].append('scale='+str(sc))
-            plt.figure()
-            plt.subplot(1,2,1)
-            plt.plot(tmpf)
-            plt.subplot(1,2,2)
-            plt.plot(unitmpf)
+            # plt.figure()
+            # plt.subplot(1,2,1)
+            # plt.plot(tmpf)
+            # plt.subplot(1,2,2)
+            # plt.plot(unitmpf)
         tf = np.concatenate((deepcopy(f),tf),axis=0)
         tl = np.concatenate((deepcopy(l),tl),axis=0)
         tfd = fd.tolist()+tfd

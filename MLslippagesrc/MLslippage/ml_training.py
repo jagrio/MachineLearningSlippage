@@ -411,9 +411,17 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
     for sc in scale:
         for i in range(len(f)):
             tmpf = deepcopy(f[i][:,:-1])
-            unitmpf = tmpf / np.linalg.norm(tmpf)                # find unitvector
-            tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)   # scale data after removing DC
+            tmpnorm = np.linalg.norm(tmpf,axis=1)
+            unitmpf = deepcopy(tmpf)
+            for j in range(unitmpf.shape[1]):
+                unitmpf[:,j] = np.divide(tmpf[:,j], tmpnorm)           # find unitvector
+            tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
             tfd[i].append('scale='+str(sc))
+            plt.figure()
+            plt.subplot(1,2,1)
+            plt.plot(tmpf)
+            plt.subplot(1,2,2)
+            plt.plot(unitmpf)
         tf = np.concatenate((deepcopy(f),tf),axis=0)
         tl = np.concatenate((deepcopy(l),tl),axis=0)
         tfd = fd.tolist()+tfd

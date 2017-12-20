@@ -290,8 +290,8 @@ def feat(f, havelabel=0, featlabel=0, magnFFT=0, featall=0, returntime=0):
     # #  |------------|---> golz       : 10+samples{acrol} -----------------------> = 10+1.0samples ||           1034  ##
     # #  |----------> frequency domain :                                                                               ##
     # #  |------------|---> phinyomark : 3{arco}+4{mf}+2(samples/2+1){RF,IF} -----> =  9+1.0samples ||           1033  ##
-    # #  |------------|---> golz       : 1{ffaf}+2(samples/2+1){AF,PF} -----------> =  3+1.0samples ||           1027  ##
-    # #  |------------|--------|-------alltogether--------------------------------> = 36+3.0samples || numfeat = 3108  ##
+    # #  |------------|---> golz       : 2(samples/2+1){AF,PF} -------------------> =  2+1.0samples ||           1026  ##
+    # #  |------------|--------|-------alltogether--------------------------------> = 36+3.0samples || numfeat = 3107  ##
     # ###################################################################################################################
     if featlabel == 0:  # use both time and frequency domain features
         MF = mf(w)
@@ -352,7 +352,7 @@ def feat(f, havelabel=0, featlabel=0, magnFFT=0, featall=0, returntime=0):
         else:
             return np.concatenate((tmpfeat, tmptime), axis=1), time.time()
     else:
-        # Assume last column's last element is label, meaning that the whole window is considered history, and the decision 
+        # Assume last column's last element is label, meaning that the whole window is considered history, and the decision
         # taken now is made from the last length(window) samples.
         # Choosing the first element as label, would mean the window would be considered future, but that would also mean
         # that the decision is made for length(window) samples in the past.

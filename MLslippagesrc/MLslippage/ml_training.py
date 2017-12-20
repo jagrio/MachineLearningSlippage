@@ -94,7 +94,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 import re
 import datetime
 import urllib
@@ -227,18 +227,18 @@ class ml:
         """|----|---> golz       : 2(samples/2+1){AF,PF} ----------------> =  2+1.0samples ||           1026\n"""+\
         """|----|----------------|-------alltogether---------------------> = 35+3.0samples || numfeat = 3107"""
         ## Time Domain Phinyomark feats
-        featnames = ['intsgnl', 'meanabs', 'meanabsslp', 'ssi', 'var', 'rms', 'rng', 'wavl', 'zerox', 'ssc', 'wamp',
-                     'shist1', 'shist2', 'shist3']                                                   # 11+3{shist}
+        featnames = ['IS', 'MAV', 'MAVSLP', 'SSI', 'VAR', 'RMS', 'RNG', 'WAVL', 'ZC', 'SSC', 'WAMP',
+                     'HIST_1', 'HIST_2', 'HIST_3']                                                 # 11+3{shist}
         ## Frequency Domain Phinyomark feats
-        featnames += ['arco1', 'arco2', 'arco3', 'mnf', 'mdf', 'mmnf', 'mmdf']                       # 3{arco}+4{mf}
-        featnames += ['reFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
-        featnames += ['imFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
+        featnames += ['ARCO_1', 'ARCO_2', 'ARCO_3', 'MNF', 'MDF', 'MMNF', 'MMDF']                  # 3{arco}+4{mf}
+        featnames += ['RF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{RF}
+        featnames += ['IF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{IF}
         ## Time Domain Golz feats
-        featnames += ['meanv', 'stdr', 'mx', 'rngx', 'rngy', 'med', 'hjorth', 'sentr', 'se', 'ssk']  # 10
-        featnames += ['acrol{:04d}'.format(i) for i in range(window)]                                # samples{acrol}
+        featnames += ['MV', 'STD', 'MAX', 'RNGX', 'RNGY', 'MED', 'HJORTH', 'SENTR', 'SE', 'SSK']   # 10
+        featnames += ['ACORL_{:04d}'.format(i) for i in range(window)]                             # samples{acrol}
         ## Frequency Domain Golz feats
-        featnames += ['amFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
-        featnames += ['phFFT{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
+        featnames += ['AF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{AF}
+        featnames += ['PF_{:03d}'.format(i) for i in range(window/2+1)]                            # samples/2+1{PF}
 
         ############ PREFEATURES #############
         global prefeatfn, prefeatnames, prefeatid
@@ -298,7 +298,7 @@ def extract_file(source,destination='.'):
         print "Unsupported extension for decompressing. Supported extensions are .zip, .tgz, .tar.gz, .tar"
 
 ######### Download necessary dataset #############
-def download_required_files(download=1):
+def download_required_files():
     total_size_of_downloads = 0
     # datafile = datapath+'dataset.npz'
     # validfile = datapath+'validation.mat'
@@ -341,11 +341,13 @@ def download_required_files(download=1):
     print "Downloaded "+convert_bytes(total_size_of_downloads)+" of content in total!"
 
 ############ READ THE DATASET ############
-def data_prep(datafile,step=1,k=2,printit=True):
+def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
     """Prepare dataset, from each of the k fingers for all n surfaces (see fd for details)
     -> datafile : input file either in .npz or in .mat form
     -> step     : increasing sampling step, decreases sampling frequency of input, which is 1KHz initially
     -> k        : number of fingers logging data
+    -> scale    : list of scales for scaled outputs to be computed
+    -> fdes     : desired force to be subtracted from the force norm measurements
     ----- input format ----- either 'fi', 'li', 'fdi', with i in {1,...,k} for each finger
                              or     'f', 'l', 'fd' for a finger
                              corresponding to force, label and details respectively
@@ -402,7 +404,40 @@ def data_prep(datafile,step=1,k=2,printit=True):
         f = np.array([fi[::step,:] for fi in f])
         if printit:
             print 6, '-> fsampled:',f.shape, ":", [fi.shape for fi in f]
-    return f,l,fd,member,m1,m2
+    ####### SCALING
+    tf = deepcopy(f)
+    tl = deepcopy(l)
+    tfd = fd.tolist()
+    if len(scale) == 1 and scale[0] < 0.0:   # adaptive scaling
+        scale = [1./(1.1*fdes)]
+        fdes = 0.0
+    for sc in scale:
+        for i in range(len(f)):
+            tmpf = deepcopy(f[i][:,:-1])
+            tmpnorm = np.linalg.norm(tmpf,axis=1)
+            unitmpf = deepcopy(tmpf)
+            for j in range(unitmpf.shape[1]):
+                unitmpf[:,j] = np.divide(tmpf[:,j], tmpnorm)           # find unitvector
+            tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
+            tfd[i].append('scale='+str(sc))
+            # plt.figure()
+            # plt.subplot(1,2,1)
+            # plt.plot(tmpf)
+            # plt.subplot(1,2,2)
+            # plt.plot(unitmpf)
+        tf = np.concatenate((deepcopy(f),tf),axis=0)
+        tl = np.concatenate((deepcopy(l),tl),axis=0)
+        tfd = fd.tolist()+tfd
+        # tfd = np.concatenate((deepcopy(fd),tfd),axis=0)
+    tf = tf[len(f):]
+    tl = tl[len(l):]
+    tfd = np.array(tfd[len(fd):])
+    tm = np.ones(len(f)*len(scale))*member[0]/(len(scale)*1.)
+    m1, m2 = len(scale)*m1, len(scale)*m2
+    if printit:
+        print 7, '-> fscaled: ', tf.shape, tm.shape, tl.shape, tfd.shape
+
+    return tf,tl,tfd,tm,m1,m2
 
 ############ PRE-FEATURES ############
 ###### DEFINITION
@@ -515,6 +550,9 @@ def feature_extraction(prefeat, member, featfile, name='feat_', printit=True):
                     print 'sample:',ixp, ', time(sec):', '{:.2f}'.format(time.time()-now), tmpfnred, tmp.shape
                 if delete_big_features:
                     call(['rm',tmpfn]) # delete big feature file, after reducing its size to desired
+            else:
+                if delete_big_features:
+                    call(['rm',tmpfn]) # delete big feature file, since reduced size file exists
         for ixp in range(len(prefeat)):
             if delete_big_features:
                 tmpfn = tmpfeatfilename(ixp,name)
@@ -709,25 +747,48 @@ def get_feat_id(feat_ind, printit=False):
     id_list[2][ftfn_freq_phin[-1]+1:] = 1
 
     full_path_id = [np.zeros((len(feat_ind),5)) for i in range(len(feat_ind))]
+    freq_path_id = []
+    time_path_id = []
 
     for ind, val in enumerate(feat_ind):
         full_path_id[ind] = [val, id_list[2][val], id_list[1][val], id_list[0][val]]
+        if(full_path_id[ind][1]==0):
+            lvl3 = 'Phin'
+        else:
+            lvl3 = 'Golz'
+        if(full_path_id[ind][2]==0):
+            lvl2 = 'Time'
+            time_path_id.append(val)
+        else:
+            lvl2 = 'Freq'
+            freq_path_id.append(val)
+        if(full_path_id[ind][3]==0):
+            lvl1 = 'Norm'
+        else:
+            lvl1 = 'Ft/Fn'
         if (printit):
-            if(full_path_id[ind][1]==0):
-                lvl3 = 'Phin'
-            else:
-                lvl3 = 'Golz'
-            if(full_path_id[ind][2]==0):
-                lvl2 = 'Time'
-            else:
-                lvl2 = 'Freq'
-            if(full_path_id[ind][3]==0):
-                lvl1 = 'Norm'
-            else:
-                lvl1 = 'Ft/Fn'
             print(feat_ind[ind],featnames[val%(norm_feats[-1]+1)],lvl3,lvl2,lvl1)
+    return(full_path_id,time_path_id,freq_path_id)
 
-    return(full_path_id,norm_time_feats,norm_freq_feats)
+def get_feat_names(printit=True):
+    """Return a list with all computed feature names"""
+    return featnames
+
+def get_feat_ids_from_names(feat_name_list, printit=False):
+    """Return a list of indexes corresponding to the given list of feature names"""
+    tmpfind = []
+    for m in feat_name_list:
+        try:
+            ti = m.index('_')
+        except:
+            ti = len(m)+1
+        for i in range(len(featnames)):
+            if featnames[i][:ti] == m[:ti]:
+                tmpfind.append(i)
+    if printit:
+        print tmpfind
+        print np.array(featnames)[tmpfind]
+    return tmpfind
 
 ############ Surface Splitting ############
 def surface_split(data_X, data_Y, n=6, k=2, printit=True):
@@ -757,20 +818,21 @@ def surface_split(data_X, data_Y, n=6, k=2, printit=True):
     return surfaces, surf_labels
 
 ############ Featureset Splitting ############
-def feat_subsets(data,fs_ind,ofs):
+def feat_subsets(data,fs_ind,keep_from_fs_ind):
     """returns a splitting per featureset of input features
     -> data                                : input data X
     -> fs_ind                              : prefeature id
-    -> ofs                                 : number of features in total
+    -> keep_from_fs_ind                    : list of feature indexes to be kept from whole feature vector
     <- X_amfft, X_freq_all, X_time, X_both : split featuresets amplitude of FFT, all time only,
                                                                all frequency only and all features
     """
-    _,tf,ff = get_feat_id(range(ofs))
+    ofs = len(keep_from_fs_ind)
+    _,tf,ff = get_feat_id(keep_from_fs_ind)
     amfft_inds = []
     temp1 = deepcopy(data)
 
-    for i in range(ofs):
-        if (featnames[i].startswith('amFFT')):
+    for i in keep_from_fs_ind:
+        if (featnames[i].startswith('AF')):
             amfft_inds.append(i)
 
     if (fs_ind == 2):
@@ -786,18 +848,22 @@ def feat_subsets(data,fs_ind,ofs):
         amfft = amfft_inds
 
     X_amfft = temp1[:,amfft]
-    X_time = np.delete(temp1,freqf,axis=1)
-    X_freq_all = np.delete(temp1,timef,axis=1)
-    X_both = data
+    X_time = temp1[:,timef]
+    X_freq_all = temp1[:,freqf]
+    X_both = data[:,keep_from_fs_ind]
     return X_amfft, X_freq_all, X_time, X_both
 
 ############ Prepare the dataset split for each surface ############
-def computeXY_persurf(Xsp, Ysp, surffile, n=6, k=2, saveload=True, printit=True):
+def computeXY_persurf(Xsp, Ysp, surffile, keepind=[-1], n=6, k=2, saveload=True, printit=True):
     """returns a split per surface data and label of inputs
     -> Xsp, Ysp     : input data and labels, after having trimmed data around the label's change points
     -> surffile     : desired output's filename for saving
+    -> keepind      : list of feature indexes to be kept from whole feature vector
+    -> n,k,saveload : different surfaces in dataset, number of different data sources (fingers), save/load computed data
     <- surf, surfla : output data and label, split per surface
     """
+    if len(keepind) == 0 or keepind[0] == -1:
+        keepind = range(len(featnames))
     if printit:
         print "------------------------ COMPUTING X,Y per surface CLASSIFIERS' INPUT --------------------------------"
     if os.path.isfile(surffile) and saveload:
@@ -815,10 +881,10 @@ def computeXY_persurf(Xsp, Ysp, surffile, n=6, k=2, saveload=True, printit=True)
                     print i,j,surf1.shape
                 if j == tmpsurf.shape[0]:
                     # ommit a sample for converting to array
-                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j-1,:-1,:],i,len(featnames)))
+                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j-1,:-1,:],i,keepind))
                 else:
                     # keep all subfeaturesets
-                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j],i,len(featnames)))
+                    tmpsurfsubfeat.append(feat_subsets(tmpsurf[j],i,keepind))
             surf.append(tmpsurfsubfeat)
             surfla.append(surfla1)
         # surf dims: (featuresets, surfaces, prefeaturesets) with each one enclosing (samples, features)
@@ -898,7 +964,7 @@ def cross_fit1(i,j,k,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             # Check if model already existent, but not the cross-validated one (on the same surface)
             model = []
             for m in range(kmax):
-                tmpcopyfileid = filepath+filename1(i,j,k,m)+'.npz'
+                tmpcopyfileid = filename1(i,j,k,m)
                 if k!=m and os.path.isfile(tmpcopyfileid):
                     if (printit):
                         print 'Found precomputed model of '+str(k)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
@@ -1058,9 +1124,9 @@ def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             if (printit):
                 print 'Fitting on '+str(k1)+"-"+str(k2)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
-                tmpcopyfileid = filepath+filename2(i,j,k1,k2,k2)+'.npz'
+                tmpcopyfileid = filename2(i,j,k1,k2,k2)
             else:   # same as above
-                tmpcopyfileid = filepath+filename2(i,j,k1,k2,k1)+'.npz'
+                tmpcopyfileid = filename2(i,j,k1,k2,k1)
             if not os.path.isfile(tmpcopyfileid):
                 folds = cv.split(data, labels)
                 cm_all = np.zeros((2,2))
@@ -1083,7 +1149,7 @@ def cross_fit2(i,j,k1,k2,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             ts_labels = labels2
             model = []
             for m in range(kmax):
-                tmpcopyfileid = filepath+filename2(i,j,k1,k2,m)+'.npz'
+                tmpcopyfileid = filename2(i,j,k1,k2,m)
                 if k1!=m and k2!=m and os.path.isfile(tmpcopyfileid):
                     if (printit):
                         print 'Found precomputed model of '+str(k1)+str(k2)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
@@ -1259,14 +1325,14 @@ def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             if (printit):
                 print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
-                tmpcopyfileid1 = filepath+filename3(i,j,k1,k2,k3,k2)+'.npz'
-                tmpcopyfileid2 = filepath+filename3(i,j,k1,k2,k3,k3)+'.npz'
+                tmpcopyfileid1 = filename3(i,j,k1,k2,k3,k2)
+                tmpcopyfileid2 = filename3(i,j,k1,k2,k3,k3)
             elif l == k2:   # same as above
-                tmpcopyfileid1 = filepath+filename3(i,j,k1,k2,k3,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename3(i,j,k1,k2,k3,k3)+'.npz'
+                tmpcopyfileid1 = filename3(i,j,k1,k2,k3,k1)
+                tmpcopyfileid2 = filename3(i,j,k1,k2,k3,k3)
             else:
-                tmpcopyfileid1 = filepath+filename3(i,j,k1,k2,k3,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename3(i,j,k1,k2,k3,k2)+'.npz'
+                tmpcopyfileid1 = filename3(i,j,k1,k2,k3,k1)
+                tmpcopyfileid2 = filename3(i,j,k1,k2,k3,k2)
             if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2):
                 folds = cv.split(data, labels)
                 cm_all = np.zeros((2,2))
@@ -1293,7 +1359,7 @@ def cross_fit3(i,j,k1,k2,k3,kmax,l,data,labels,data2,labels2,pipe,printit=True):
             ts_labels = labels2
             model = []
             for m in range(kmax):
-                tmpcopyfileid = filepath+filename3(i,j,k1,k2,k3,m)+'.npz'
+                tmpcopyfileid = filename3(i,j,k1,k2,k3,m)
                 if k1!=m and k2!=m and k3!=m and os.path.isfile(tmpcopyfileid):
                     if (printit):
                         print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
@@ -1477,21 +1543,21 @@ def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=Tru
             if (printit):
                 print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
-                tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k2)+'.npz'
-                tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k3)+'.npz'
-                tmpcopyfileid3 = filepath+filename4(i,j,k1,k2,k3,k4,k4)+'.npz'
+                tmpcopyfileid1 = filename4(i,j,k1,k2,k3,k4,k2)
+                tmpcopyfileid2 = filename4(i,j,k1,k2,k3,k4,k3)
+                tmpcopyfileid3 = filename4(i,j,k1,k2,k3,k4,k4)
             elif l == k2:   # same as above
-                tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k3)+'.npz'
-                tmpcopyfileid3 = filepath+filename4(i,j,k1,k2,k3,k4,k4)+'.npz'
+                tmpcopyfileid1 = filename4(i,j,k1,k2,k3,k4,k1)
+                tmpcopyfileid2 = filename4(i,j,k1,k2,k3,k4,k3)
+                tmpcopyfileid3 = filename4(i,j,k1,k2,k3,k4,k4)
             elif l == k3:   # same as above
-                tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k2)+'.npz'
-                tmpcopyfileid3 = filepath+filename4(i,j,k1,k2,k3,k4,k4)+'.npz'
+                tmpcopyfileid1 = filename4(i,j,k1,k2,k3,k4,k1)
+                tmpcopyfileid2 = filename4(i,j,k1,k2,k3,k4,k2)
+                tmpcopyfileid3 = filename4(i,j,k1,k2,k3,k4,k4)
             else:
-                tmpcopyfileid1 = filepath+filename4(i,j,k1,k2,k3,k4,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename4(i,j,k1,k2,k3,k4,k2)+'.npz'
-                tmpcopyfileid3 = filepath+filename4(i,j,k1,k2,k3,k4,k3)+'.npz'
+                tmpcopyfileid1 = filename4(i,j,k1,k2,k3,k4,k1)
+                tmpcopyfileid2 = filename4(i,j,k1,k2,k3,k4,k2)
+                tmpcopyfileid3 = filename4(i,j,k1,k2,k3,k4,k3)
             if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2) and not os.path.isfile(tmpcopyfileid3):
                 folds = cv.split(data, labels)
                 cm_all = np.zeros((2,2))
@@ -1521,7 +1587,7 @@ def cross_fit4(i,j,k1,k2,k3,k4,kmax,l,data,labels,data2,labels2,pipe,printit=Tru
             ts_labels = labels2
             model = []
             for m in range(kmax):
-                tmpcopyfileid = filepath+filename4(i,j,k1,k2,k3,k4,m)+'.npz'
+                tmpcopyfileid = filename4(i,j,k1,k2,k3,k4,m)
                 if k1!=m and k2!=m and k3!=m and k4!=m and os.path.isfile(tmpcopyfileid):
                     if (printit):
                         print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
@@ -1709,30 +1775,30 @@ def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=
             if (printit):
                 print 'Fitting on '+str(k1)+"-"+str(k2)+"-"+str(k3)+"-"+str(k4)+"-"+str(k5)+', cross-validating on '+str(l)+'...'
             if l == k1: # copy if existent from the other sibling file
-                tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
-                tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
-                tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k4)+'.npz'
-                tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k5)+'.npz'
+                tmpcopyfileid1 = filename5(i,j,k1,k2,k3,k4,k5,k2)
+                tmpcopyfileid2 = filename5(i,j,k1,k2,k3,k4,k5,k3)
+                tmpcopyfileid3 = filename5(i,j,k1,k2,k3,k4,k5,k4)
+                tmpcopyfileid4 = filename5(i,j,k1,k2,k3,k4,k5,k5)
             elif l == k2:   # same as above
-                tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
-                tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k4)+'.npz'
-                tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k5)+'.npz'
+                tmpcopyfileid1 = filename5(i,j,k1,k2,k3,k4,k5,k1)
+                tmpcopyfileid2 = filename5(i,j,k1,k2,k3,k4,k5,k3)
+                tmpcopyfileid3 = filename5(i,j,k1,k2,k3,k4,k5,k4)
+                tmpcopyfileid4 = filename5(i,j,k1,k2,k3,k4,k5,k5)
             elif l == k3:   # same as above
-                tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
-                tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k4)+'.npz'
-                tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k5)+'.npz'
+                tmpcopyfileid1 = filename5(i,j,k1,k2,k3,k4,k5,k1)
+                tmpcopyfileid2 = filename5(i,j,k1,k2,k3,k4,k5,k2)
+                tmpcopyfileid3 = filename5(i,j,k1,k2,k3,k4,k5,k4)
+                tmpcopyfileid4 = filename5(i,j,k1,k2,k3,k4,k5,k5)
             elif l == k4:   # same as above
-                tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
-                tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
-                tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k5)+'.npz'
+                tmpcopyfileid1 = filename5(i,j,k1,k2,k3,k4,k5,k1)
+                tmpcopyfileid2 = filename5(i,j,k1,k2,k3,k4,k5,k2)
+                tmpcopyfileid3 = filename5(i,j,k1,k2,k3,k4,k5,k3)
+                tmpcopyfileid4 = filename5(i,j,k1,k2,k3,k4,k5,k5)
             else:
-                tmpcopyfileid1 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k1)+'.npz'
-                tmpcopyfileid2 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k2)+'.npz'
-                tmpcopyfileid3 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k3)+'.npz'
-                tmpcopyfileid4 = filepath+filename5(i,j,k1,k2,k3,k4,k5,k4)+'.npz'
+                tmpcopyfileid1 = filename5(i,j,k1,k2,k3,k4,k5,k1)
+                tmpcopyfileid2 = filename5(i,j,k1,k2,k3,k4,k5,k2)
+                tmpcopyfileid3 = filename5(i,j,k1,k2,k3,k4,k5,k3)
+                tmpcopyfileid4 = filename5(i,j,k1,k2,k3,k4,k5,k4)
             if not os.path.isfile(tmpcopyfileid1) and not os.path.isfile(tmpcopyfileid2)\
                and not os.path.isfile(tmpcopyfileid3) and not os.path.isfile(tmpcopyfileid4):
                 folds = cv.split(data, labels)
@@ -1766,7 +1832,7 @@ def cross_fit5(i,j,k1,k2,k3,k4,k5,kmax,l,data,labels,data2,labels2,pipe,printit=
             ts_labels = labels2
             model = []
             for m in range(kmax):
-                tmpcopyfileid = filepath+filename5(i,j,k1,k2,k3,k4,k5,m)+'.npz'
+                tmpcopyfileid = filename5(i,j,k1,k2,k3,k4,k5,m)
                 if k1!=m and k2!=m and k3!=m and k4!=m and k5!=m and os.path.isfile(tmpcopyfileid):
                     if (printit):
                         print 'Found precomputed model of '+str(k1)+str(k2)+str(k3)+str(k4)+str(k5)+', tested on '+str(m)+'. Testing on '+str(l)+'...'
@@ -1950,7 +2016,18 @@ def make_bargraphs_from_perf(i,maxsurf=6,printit=True):
             plt.yticks([])
 
 ############ PREDICTING ACCURACY FOR ATI SENSOR DATA ##############
-def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
+def testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind=[-1], printit=True, ltest=6):
+    """Evaluating performance of single classifier
+    -> surf, Xsp       : surface or whole dataset
+    -> surfla, Ysp     : surface label or whole dataset labels
+    -> keepind         : feature indexes to keep (default keep all)
+    -> ltest           : number of testing surfaces
+    <- Yscn, Yscbn     : Accuracy for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    <- Yf1scn, Yf1scbn : F1score for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    <- Ycmn, Ycmbn     : Confusion matrix for BOTH and AFFT trained models (per 1 surface) for whole dataset
+    """
+    if len(keepind) == 0 or keepind[0] == -1:
+        keepind = range(len(featnames))
     fileid = filename1(0,3,0,5)            #  all  features, 1 trained surface(surf 0)
     fileidb = filename1(0,0,0,5)           # |FFT| features, 1 trained surface(surf 0)
     # fileid5 = filename5(0,3,0,1,2,3,4,5)   #  all  features, 5 trained surfaces(surf 0-4)
@@ -1975,16 +2052,19 @@ def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
         Ycm = Ycm.astype('float') / Ycm.sum(axis=1)[:, np.newaxis]
         Ycmb = confusion_matrix(y_pred=Youtb, y_true=surfla[:, i, 0])
         Ycmb = Ycmb.astype('float') / Ycmb.sum(axis=1)[:, np.newaxis]
+        Yf1sc = f1_score(y_pred=Yout, y_true=surfla[:, i, 0])
+        Yf1scb = f1_score(y_pred=Youtb, y_true=surfla[:, i, 0])
         # Ycm5 = confusion_matrix(y_pred=Yout5, y_true=surfla[:, i, 0])
         # Ycm5b = confusion_matrix(y_pred=Yout5b, y_true=surfla[:, i, 0])
         if printit:
             print "Accuracy for surface ", i, Ysc, Yscb #, Ysc5, Ysc5b
+            print "F1score for surface  ", i, Yf1sc, Yf1scb
             print "TN(stable) and TP(slip) for surface ", i, Ycm[0,0], Ycm[1,1],'|', Ycmb[0,0], Ycmb[1,1]
-    Youtn = model.predict(Xsp[2])
+    Youtn = model.predict(Xsp[2][:,keepind])
     Youtbn = modelb.predict(Xsp[2][:,-window-2:-window/2-1])
     # Yout5n = model5.predict(Xsp[2])
     # Yout5bn = model5b.predict(Xsp[2][:,-window-2:-window/2-1])
-    Yscn = model.score(Xsp[2],Ysp[2])
+    Yscn = model.score(Xsp[2][:,keepind],Ysp[2])
     Yscbn = modelb.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
     # Ysc5n = model5.score(Xsp[2],Ysp[2])
     # Ysc5bn = model5b.score(Xsp[2][:,-window-2:-window/2-1],Ysp[2])
@@ -1992,21 +2072,32 @@ def testing_accuracy_simple(surf, surfla, Xsp, Ysp, printit=True, ltest=6):
     Ycmn = Ycmn.astype('float') / Ycmn.sum(axis=1)[:, np.newaxis]
     Ycmbn = confusion_matrix(y_pred=Youtbn, y_true=Ysp[2])
     Ycmbn = Ycmbn.astype('float') / Ycmbn.sum(axis=1)[:, np.newaxis]
+    Yf1scn = f1_score(y_pred=Youtn, y_true=Ysp[2])
+    Yf1scbn = f1_score(y_pred=Youtbn, y_true=Ysp[2])
     # Ycm5n = confusion_matrix(y_pred=Yout5n, y_true=Ysp[2])
     # Ycm5bn = confusion_matrix(y_pred=Yout5bn, y_true=Ysp[2])
     print "======================================================================================"
     print "Accuracy for dataset   ", Yscn, Yscbn  #, Ysc5n, Ysc5bn
+    print "F1score for dataset   ", Yf1scn, Yf1scbn
     print "TN(stable) and TP(slip) for dataset ", Ycmn[0,0], Ycmn[1,1],'|', Ycmbn[0,0], Ycmbn[1,1]
     print "======================================================================================"
+    return Yscn, Yscbn, Yf1scn, Yf1scbn, Ycmn, Ycmbn
 
 ############ PREDICTING ACCURACY FOR ATI SENSOR DATA DETAILED ##############
 def testing_accuracy(surf, surfla, trsurf=[1, 5], ltest=6, printit=True):
+    """Evaluating performance of all classifiers on average
+    -> surf      : surfaces of whole dataset
+    -> surfla    : surface labels of whole dataset
+    -> trsurf    : number of surfaces used for training, that will be evaluated
+    -> ltest     : number of testing surfaces
+    <- acc       : Average accuracy from all trained models
+    """
     lsurf = len(trsurf)
     lsubfs = surf.shape[0]
     acc = np.zeros((lsurf,lsubfs,ltest,2))
     for r in range(lsurf):  # for each number of surfaces used for training
         for k in range(lsubfs):  # for each subfs
-            filenames = glob.glob("data/results" + str(trsurf[r]) + "/fs_" + str(0) + "_subfs_" + str(k) + "_*.npz")
+            filenames = glob.glob(respath + str(trsurf[r]) + "/fs_" + str(0) + "_subfs_" + str(k) + "_*.npz")
             numf = len(filenames)
             for i in range(ltest):  # for each testing surface
                 curracc = np.zeros(numf)
@@ -2092,26 +2183,32 @@ def visualize(f, surf, surfla, chosensurf=5, plotpoints=200, save=False, printit
         savefig(datapath+'validation_ati.pdf', bbox_inches='tight')
 
 ###### Prediction function for new datasets
-def prediction(dataset,k=1,n=6,printit=False,plotit=False):
+def prediction(dataset,keepind=[-1],k=1,n=6,scale=1.0,fdes=0.0,printit=False,plotit=False):
+    if len(keepind) == 0 or keepind[0] == -1:
+        keepind = range(len(featnames))
     print "Filename for prediction: "+dataset
     if dataset[-4:] == '.mat':
         atifile = datapath+dataset
-        atifeatname = dataset[:-4]+featname
+        atifeatname = dataset[:-4]+'_'+featname+'_'+str(scale)+'_'+str(fdes)+'_'
         atifeatfile = featpath+atifeatname+'.npz'
-        atisurffile = featpath+atifeatname+'_'+str(k)+'fing_'+str(n)+'surf.npz'
+        atisurffile = featpath+atifeatname+'_'+str(len(keepind))+'_'+str(k)+'fing_'+str(n)+'surf.npz'
         atiXYfile = featpath+atifeatname+'_XY.npz'
         atiXYsplitfile = featpath+atifeatname+'_XYsplit.npz'
-        f,l,fd,member,m1,m2 = data_prep(atifile,k=k,printit=printit)
+        f,l,fd,member,m1,m2 = data_prep(atifile,scale=[scale],fdes=fdes,k=k,printit=printit)
+        # print np.max(f[0][:,:-1])
+        # for i in range(len(f)):
+        #     f[i][:,:-1] = scale * f[i][:,:-1]
+        # print np.max(f[0][:,:-1])
         prefeat = compute_prefeat(f,printit)
-        features, labels = feature_extraction(prefeat, member, atifeatfile, dataset[:-4]+'_',printit)
+        features, labels = feature_extraction(prefeat, member, atifeatfile, atifeatname,printit)
         new_labels = label_cleaning(prefeat,labels,member,printit=printit)
         X,Y,Yn,Xsp,Ysp = computeXY(features,labels,new_labels,m1,m2,atiXYfile,atiXYsplitfile,printit)
-        surf, surfla = computeXY_persurf(Xsp,Ysp,atisurffile,n=n,k=k,printit=printit)
+        surf, surfla = computeXY_persurf(Xsp,Ysp,atisurffile,keepind,n=n,k=k,printit=printit)
         ############ PREDICTING SCORE FOR ATI SENSOR DATA ROTATIONAL ##############
-        testing_accuracy_simple(surf, surfla, Xsp, Ysp, ltest=n)
+        testing_accuracy_simple(surf, surfla, Xsp, Ysp, keepind, ltest=n)
         ############ PREDICTING SCORE FOR ATI SENSOR DATA DETAILED ##############
         # _ = testing_accuracy(surf, surfla, ltest=6)
-        surfnosplit, surflanosplit = computeXY_persurf(X,Y,atisurffile,n=n,k=k,saveload=False,printit=printit)
+        surfnosplit, surflanosplit = computeXY_persurf(X,Y,atisurffile,keepind,n=n,k=k,saveload=False,printit=printit)
         for chosensurf in range(5):
             if plotit:
                 visualize(f, surfnosplit, surflanosplit, chosensurf, plotpoints=200, printit=printit)

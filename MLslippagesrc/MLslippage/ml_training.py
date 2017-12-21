@@ -408,18 +408,30 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
     tf = deepcopy(f)
     tl = deepcopy(l)
     tfd = fd.tolist()
-    if len(scale) == 1 and scale[0] < 0.0:   # adaptive scaling
+    zscore = False
+    if len(scale) == 1 and scale[0] == -1.0:   # adaptive scaling
         scale = [1./(1.1*fdes)]
         fdes = 0.0
+    if len(scale) == 1 and scale[0] == -2.0:   # zscore to each
+        scale = [1.]
+        fdes = 0.0
+        zscore = True
     for sc in scale:
         for i in range(len(f)):
             tmpf = deepcopy(f[i][:,:-1])
+            tmpl = deepcopy(f[i][:,-1])
             tmpnorm = np.linalg.norm(tmpf,axis=1)
             unitmpf = deepcopy(tmpf)
             for j in range(unitmpf.shape[1]):
-                unitmpf[:,j] = np.divide(tmpf[:,j], tmpnorm)           # find unitvector
-            tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
-            tfd[i].append('scale='+str(sc))
+                unitmpf[:,j] = np.divide(tmpf[:,j], tmpnorm)               # find unitvector
+            if zscore:
+                tfd[i].append('scale='+str(sc))
+                sc = round(1./np.mean(tmpnorm[tmpl==0.0]),2)               # scale = 1/mean_stable
+                tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
+                # tfd[i].append('scale='+str(sc))
+            else:
+                tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
+                tfd[i].append('scale='+str(sc))
             # plt.figure()
             # plt.subplot(1,2,1)
             # plt.plot(tmpf)

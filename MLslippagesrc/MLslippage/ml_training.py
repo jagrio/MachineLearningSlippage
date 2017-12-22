@@ -413,8 +413,6 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
         scale = [1./(1.1*fdes)]
         fdes = 0.0
     if len(scale) == 1 and scale[0] == -2.0:   # zscore to each
-        scale = [1.]
-        fdes = 0.0
         zscore = True
     for sc in scale:
         for i in range(len(f)):
@@ -427,16 +425,11 @@ def data_prep(datafile,step=1,k=2,scale=[1.0],fdes=0.0,printit=True):
             if zscore:
                 tfd[i].append('scale='+str(sc))
                 sc = round(1./np.mean(tmpnorm[tmpl==0.0]),2)               # scale = 1/mean_stable
-                tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
+                tf[i][:,:-1] = sc * tmpf                                   # scale data after removing DC
                 # tfd[i].append('scale='+str(sc))
             else:
                 tf[i][:,:-1] = sc * (tmpf - fdes * unitmpf)                # scale data after removing DC
                 tfd[i].append('scale='+str(sc))
-            # plt.figure()
-            # plt.subplot(1,2,1)
-            # plt.plot(tmpf)
-            # plt.subplot(1,2,2)
-            # plt.plot(unitmpf)
         tf = np.concatenate((deepcopy(f),tf),axis=0)
         tl = np.concatenate((deepcopy(l),tl),axis=0)
         tfd = fd.tolist()+tfd

@@ -2,11 +2,31 @@
 
 ## Overview
 
-Training of Machine Learning Classifiers for Slippage Detection during grasping of objects
+Training of Machine Learning Classifiers for Slippage Detection during grasping of objects.
 
 ## How to use
 
 Initially no folders exist, but they are created and filled up by usage of components described below.
+
+## Dataset links
+
+> `Datasets` are automatically downloaded, but links to them along with a detailed explanation are also provided below:
+
+* [`dataset.npz`](https://www.dropbox.com/s/j88wmtx1vvpik1m/dataset.npz?dl=1): force profile for 6 different surface experiments. (numpy zipped file, requires python)
+
+* [`validation.mat`](https://www.dropbox.com/s/r8jl57lij28ljrw/validation.mat?dl=1): force profile for plastic cup experiment. (requires matlab)
+
+> `Dataset format`:
+
+  |  data field  |                        explanation                             |
+  |:------------:|:--------------------------------------------------------------:|
+  | f1, f2, f    | force `measurements` from finger 1, finger 2, both (f1 and f2) |
+  | fd1, fd2, fd | corresponding (per finger) surface `details`                   |
+  | l1, l2, l    | corresponding (per finger) `labels`                            |
+
+> `Dataset usage`:
+
+Refer to [`load_data_example.ipynb`](load_data_example.ipynb)
 
 ### Requirements
 
